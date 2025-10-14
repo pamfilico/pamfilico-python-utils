@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "pamfilico-python-utils"
+version = "0.1.0"
+description = "Pamfilico Python utility functions and helpers"
+authors = ["Kasper"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+sqlalchemy = ">=1.4.44,<1.5.0"
+python-jose = "3.3.0"
+hkdf = "0.0.3"
+python-dotenv = "1.0.0"
+flask = ">=2.0.0"
+marshmallow = ">=3.0.0"
+werkzeug = ">=2.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
