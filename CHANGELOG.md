@@ -1,3 +1,9 @@
+## v0.1.4 (2025-10-15)
+
+### Fix
+
+- correct comment placement and empty comment block issues
+
 ## v0.1.3 (2025-10-15)
 
 ## v0.1.2 (2025-10-15)
