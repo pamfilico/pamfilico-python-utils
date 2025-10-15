@@ -1,3 +1,9 @@
+## v0.1.2 (2025-10-15)
+
+### Feat
+
+- add automated deployment script
+
 ## v0.1.1 (2025-10-15)
 
 ### Feat
