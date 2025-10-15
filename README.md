@@ -77,10 +77,13 @@ poetry update pamfilico-python-utils
   - Simple upload and fetch operations
   - Public URL generation
 
-- **CLI Tools**: Command-line utilities
+- **CLI Tools**: Command-line utilities for Flask development
   - `flask_route_usage_report`: Analyze Flask routes and find their frontend usage
+  - `add_usage_comments`: Add usage comment blocks above Flask route definitions
+  - `remove_route_usage_comments`: Remove all usage comment blocks from Flask routes
   - Generates comprehensive markdown reports
   - Detects unused routes (dead code)
+  - Supports pyproject.toml configuration
 
 ## Usage
 
@@ -245,15 +248,18 @@ from pamfilico_python_utils.storage import DigitalOceanSpacesClient
 from pamfilico_python_utils.cli import FlaskRouteAnalyzer, RouteInfo, UsageInfo
 ```
 
-### Flask Route Usage Report CLI
+### CLI Tools
+
+#### 1. Flask Route Usage Report
 
 Analyze Flask routes and their frontend usage to identify dead code and track API consumption:
 
 ```bash
-# From your monorepo root
+# From your backend directory (uses pyproject.toml config)
+cd backend_carfast
 poetry run flask_route_usage_report
 
-# Custom paths
+# Custom paths (overrides pyproject.toml)
 poetry run flask_route_usage_report \
   --backend ./my-backend \
   --api-path app/api/v1 \
@@ -264,9 +270,19 @@ poetry run flask_route_usage_report \
 poetry run flask_route_usage_report --help
 ```
 
+**Configuration in pyproject.toml:**
+
+```toml
+[tool.flask_route_usage]
+backend = "./"
+api_path = "app/api/v1"
+frontends = ["../frontend_carfast_manager_web", "../frontend_rentfast_landing"]
+frontend_src = "src"
+```
+
 **Output:**
 - `flask_routes_with_usage.md` - Routes with frontend usage (106 routes, 148 calls)
-- `flask_routes_without_usage.md` - Unused routes that may be dead code (63 routes)
+- `flask_routes_without_usage.md` - Unused routes that may be dead code (62 routes)
 
 **Features:**
 - Extracts Flask routes from backend using regex parsing
@@ -275,6 +291,102 @@ poetry run flask_route_usage_report --help
 - Handles multi-line API calls and template variables
 - Groups by HTTP method (GET, POST, PUT, DELETE, PATCH)
 - Shows exact file locations with line numbers
+
+#### 2. Add Usage Comments
+
+Adds comment blocks above Flask route definitions showing where they're used in frontend code:
+
+```bash
+# Dry run (preview changes)
+cd backend_carfast
+poetry run add_usage_comments --dry-run
+
+# Apply changes
+poetry run add_usage_comments
+
+# Custom paths (overrides pyproject.toml)
+poetry run add_usage_comments \
+  --backend-path ./my-backend \
+  --with-usage flask_routes_with_usage.md \
+  --without-usage flask_routes_without_usage.md
+```
+
+**Configuration in pyproject.toml:**
+
+```toml
+[tool.add_usage_comments]
+backend_path = "./"
+with_usage_report = "flask_routes_with_usage.md"
+without_usage_report = "flask_routes_without_usage.md"
+```
+
+**Example output in your Flask routes:**
+
+```python
+# START: ROUTE USAGES TOOL
+# ./frontend_carfast_manager_web/src/actions/insurance.ts:30
+# ./frontend_carfast_manager_web/src/app/[locale]/insurance/page.tsx:48
+# ./frontend_carfast_manager_web/src/app/[locale]/bookings/requests/page.tsx:189
+# END: ROUTE USAGES TOOL
+@api.route("/insurance", methods=["GET"])
+@authenticatenext
+def list_insurances(auth):
+    # ...
+```
+
+**Features:**
+- Places comments BEFORE decorators (correct position)
+- Handles routes with no frontend usage (marks for potential deletion)
+- Replaces existing comment blocks automatically
+- Supports both legacy and new comment markers
+- Dry-run mode for safe preview
+
+#### 3. Remove Route Usage Comments
+
+Removes all usage comment blocks from Flask route files:
+
+```bash
+# Remove all comment blocks
+cd backend_carfast
+poetry run remove_route_usage_comments
+
+# View help
+poetry run remove_route_usage_comments --help
+```
+
+**Configuration in pyproject.toml:**
+
+```toml
+[tool.remove_route_usage_comments]
+backend_path = "./"
+```
+
+**Features:**
+- Removes all `# START: ROUTE USAGES TOOL` / `# END: ROUTE USAGES TOOL` blocks
+- Also removes legacy `# START: USAGES TOOL` / `# END: USAGES TOOL` blocks
+- Safe operation (only removes known comment markers)
+- Shows summary of files processed and blocks removed
+
+#### Typical Workflow
+
+```bash
+# 1. Analyze routes and generate reports
+cd backend_carfast
+poetry run flask_route_usage_report
+
+# 2. Review the generated markdown files
+# - flask_routes_with_usage.md (routes being used)
+# - flask_routes_without_usage.md (potential dead code)
+
+# 3. Add comment blocks to route files (dry-run first)
+poetry run add_usage_comments --dry-run
+poetry run add_usage_comments
+
+# 4. If you need to regenerate or clean up
+poetry run remove_route_usage_comments
+poetry run flask_route_usage_report
+poetry run add_usage_comments
+```
 
 **Programmatic Usage:**
 
