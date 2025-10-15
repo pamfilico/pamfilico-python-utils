@@ -1,3 +1,9 @@
+## v0.3.1 (2025-10-15)
+
+### Fix
+
+- handle axios calls with newline before dot operator
+
 ## v0.3.0 (2025-10-15)
 
 ### Feat
