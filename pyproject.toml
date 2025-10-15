@@ -19,6 +19,7 @@ tomli = ">=2.0.0"
 
 [tool.poetry.scripts]
 flask_route_usage_report = "pamfilico_python_utils.cli.flask_route_usage_report:main"
+add_usage_comments = "pamfilico_python_utils.cli.add_usage_comments:main"
 
 [build-system]
 requires = ["poetry-core"]
