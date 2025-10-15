@@ -1,3 +1,9 @@
+## v0.2.1 (2025-10-15)
+
+### Fix
+
+- simplify comment placement logic to match root version
+
 ## v0.2.0 (2025-10-15)
 
 ### Feat
