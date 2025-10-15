@@ -21,6 +21,7 @@ tomli = ">=2.0.0"
 flask_route_usage_report = "pamfilico_python_utils.cli.flask_route_usage_report:main"
 add_usage_comments = "pamfilico_python_utils.cli.add_usage_comments:main"
 remove_route_usage_comments = "pamfilico_python_utils.cli.remove_route_usage_comments:main"
+update_route_usage_comments = "pamfilico_python_utils.cli.update_route_usage_comments:main"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.9.1"
