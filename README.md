@@ -4,17 +4,13 @@ Python utility functions and helpers for common tasks.
 
 ## Installation
 
-Install directly from GitHub using Poetry:
+Install directly from GitHub using Poetry (note the `git+` prefix):
 
 ```bash
-poetry add git+https://github.com/yourusername/pamfilico-python-utils.git
+poetry add git+https://github.com/pamfilico/pamfilico-python-utils.git
 ```
 
-Or with pip:
-
-```bash
-pip install git+https://github.com/yourusername/pamfilico-python-utils.git
-```
+**Important:** The `git+` prefix is required for Poetry/pip to recognize this as a git repository URL.
 
 ## Features
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pamfilico-python-utils"
-version = "0.1.0"
+version = "0.1.1"
 description = "Pamfilico Python utility functions and helpers"
 authors = ["Kasper"]
 readme = "README.md"
@@ -20,6 +20,18 @@ tomli = ">=2.0.0"
 [tool.poetry.scripts]
 flask_route_usage_report = "pamfilico_python_utils.cli.flask_route_usage_report:main"
 add_usage_comments = "pamfilico_python_utils.cli.add_usage_comments:main"
+
+[tool.poetry.group.dev.dependencies]
+commitizen = "^4.9.1"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.1"
+version_files = [
+    "pyproject.toml:version"
+]
+update_changelog_on_bump = true
+tag_format = "v$version"
 
 [build-system]
 requires = ["poetry-core"]
