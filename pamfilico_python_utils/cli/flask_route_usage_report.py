@@ -7,27 +7,76 @@ Command-line interface for analyzing Flask routes and their frontend usage.
 import argparse
 import sys
 from pathlib import Path
+from typing import Optional, Dict, Any
+
+try:
+    import tomli
+except ImportError:
+    try:
+        import tomllib as tomli  # Python 3.11+
+    except ImportError:
+        tomli = None
 
 from pamfilico_python_utils.cli.flask_route_analyzer import FlaskRouteAnalyzer
 
 
+def load_config_from_pyproject() -> Optional[Dict[str, Any]]:
+    """Load configuration from pyproject.toml if it exists
+
+    Returns:
+        Dictionary with config or None if not found
+    """
+    if tomli is None:
+        return None
+
+    # Look for pyproject.toml in current directory or parent directories
+    cwd = Path.cwd()
+    for path in [cwd] + list(cwd.parents):
+        pyproject_path = path / "pyproject.toml"
+        if pyproject_path.exists():
+            try:
+                with open(pyproject_path, "rb") as f:
+                    data = tomli.load(f)
+                    config = data.get("tool", {}).get("flask_route_usage", {})
+                    if config:
+                        print(f"📋 Loaded config from: {pyproject_path}")
+                        return config
+            except Exception as e:
+                print(f"Warning: Could not load {pyproject_path}: {e}")
+                continue
+
+    return None
+
+
 def parse_arguments():
-    """Parse command line arguments"""
+    """Parse command line arguments with pyproject.toml config support
+
+    Command-line arguments override pyproject.toml settings.
+    """
+    # Load config from pyproject.toml
+    config = load_config_from_pyproject()
+
+    # Set defaults from config or hardcoded defaults
+    default_backend = config.get("backend", "backend_carfast") if config else "backend_carfast"
+    default_api_path = config.get("api_path", "app/api/v1") if config else "app/api/v1"
+    default_frontends = config.get("frontends", ["frontend_carfast_manager_web", "frontend_rentfast_landing"]) if config else ["frontend_carfast_manager_web", "frontend_rentfast_landing"]
+    default_frontend_src = config.get("frontend_src", "src") if config else "src"
+
     parser = argparse.ArgumentParser(
         description="Analyze Flask routes and their frontend usage",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Use defaults (current monorepo structure)
+  # Use defaults from pyproject.toml (if available) or hardcoded defaults
   poetry run flask_route_usage_report
 
-  # Custom backend API path
+  # Custom backend API path (overrides pyproject.toml)
   poetry run flask_route_usage_report --api-path app/api/v2
 
-  # Custom frontend source paths
+  # Custom frontend source paths (overrides pyproject.toml)
   poetry run flask_route_usage_report --frontend-src app/src
 
-  # Custom backend and multiple frontends
+  # Custom backend and multiple frontends (overrides pyproject.toml)
   poetry run flask_route_usage_report --backend ./my-backend \\
     --frontends ./frontend1 ./frontend2
 
@@ -37,35 +86,44 @@ Examples:
     --api-path api/routes \\
     --frontends ./web-app ./mobile-web \\
     --frontend-src source
+
+Configuration:
+  Settings can be defined in pyproject.toml:
+
+  [tool.flask_route_usage]
+  backend = "./"
+  api_path = "app/api/v1"
+  frontends = ["../frontend_carfast_manager_web", "../frontend_rentfast_landing"]
+  frontend_src = "src"
         """,
     )
 
     parser.add_argument(
         "--backend",
         type=str,
-        default="backend_carfast",
-        help="Backend root directory (default: backend_carfast)",
+        default=default_backend,
+        help=f"Backend root directory (default: {default_backend})",
     )
 
     parser.add_argument(
         "--api-path",
         type=str,
-        default="app/api/v1",
-        help="API subdirectory within backend (default: app/api/v1)",
+        default=default_api_path,
+        help=f"API subdirectory within backend (default: {default_api_path})",
     )
 
     parser.add_argument(
         "--frontends",
         nargs="+",
-        default=["frontend_carfast_manager_web", "frontend_rentfast_landing"],
-        help="Frontend root directories (default: frontend_carfast_manager_web frontend_rentfast_landing)",
+        default=default_frontends,
+        help=f"Frontend root directories (default: {' '.join(default_frontends)})",
     )
 
     parser.add_argument(
         "--frontend-src",
         type=str,
-        default="src",
-        help="Source subdirectory within each frontend (default: src)",
+        default=default_frontend_src,
+        help=f"Source subdirectory within each frontend (default: {default_frontend_src})",
     )
 
     return parser.parse_args()
