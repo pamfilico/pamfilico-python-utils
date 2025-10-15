@@ -12,6 +12,50 @@ poetry add git+https://github.com/pamfilico/pamfilico-python-utils.git
 
 **Important:** The `git+` prefix is required for Poetry/pip to recognize this as a git repository URL.
 
+## For Maintainers: Deployment
+
+This package includes an automated deployment script that handles:
+- Git commits (optional)
+- Version bumping (patch/minor/major)
+- Git tagging
+- Pushing to GitHub
+
+### Quick Deploy
+
+```bash
+# Simple patch bump with commit message
+./deploy.sh -m "fix: bug fix description"
+
+# Feature addition (minor version bump)
+./deploy.sh -m "feat: new feature" -i minor
+
+# Breaking change (major version bump)
+./deploy.sh -m "feat!: breaking change" -i major
+
+# Skip commit, just bump and push
+./deploy.sh -s -i patch
+
+# Dry run to preview
+./deploy.sh -d -m "test message"
+```
+
+### Deploy Script Options
+
+- `-m, --message <msg>` - Commit message (required if uncommitted changes exist)
+- `-i, --increment <type>` - Version increment: `patch` (default), `minor`, or `major`
+- `-s, --skip-commit` - Skip git commit step (only bump version and push)
+- `-d, --dry-run` - Preview what would be done without executing
+- `-h, --help` - Show help message
+
+### After Deployment
+
+Update the package in projects using it:
+
+```bash
+cd backend_carfast
+poetry update pamfilico-python-utils
+```
+
 ## Features
 
 - **SQLAlchemy Mixins**: Ready-to-use mixins for common database patterns
