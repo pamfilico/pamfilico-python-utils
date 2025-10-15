@@ -97,18 +97,80 @@ def parse_markdown_file(md_path: Path, has_usage: bool) -> List[RouteUsage]:
     return routes
 
 
+def remove_old_blocks(lines: List[str], insert_line: int, search_range: int = 15) -> tuple:
+    """Remove all existing USAGES TOOL comment blocks (legacy and new format).
+
+    Removes blocks with markers:
+    - Legacy: # START: USAGES TOOL ... # END: USAGES TOOL
+    - New: # START: ROUTE USAGES TOOL ... # END: ROUTE USAGES TOOL
+
+    Args:
+        lines: List of file lines
+        insert_line: Target line number for insertion
+        search_range: How many lines above/below to search
+
+    Returns:
+        Tuple of (modified_lines, adjusted_insert_line, blocks_removed_count)
+    """
+    check_start = max(0, insert_line - search_range)
+    check_end = min(len(lines), insert_line + search_range)
+
+    blocks_removed = 0
+    i = check_start
+
+    while i < check_end:
+        if i >= len(lines):
+            break
+
+        # Check for BOTH legacy and new markers
+        if ('# START: USAGES TOOL' in lines[i] or
+            '# START: ROUTE USAGES TOOL' in lines[i]):
+
+            block_start = i
+            block_end = None
+
+            # Find matching END marker (legacy or new)
+            for j in range(i + 1, min(len(lines), i + 10)):
+                if ('# END: USAGES TOOL' in lines[j] or
+                    '# END: ROUTE USAGES TOOL' in lines[j]):
+                    block_end = j
+                    break
+
+            if block_end is not None:
+                # Remove entire block
+                del lines[block_start:block_end + 1]
+                blocks_removed += 1
+
+                # Adjust insert_line if removed lines before it
+                if block_start < insert_line:
+                    lines_removed = (block_end - block_start + 1)
+                    insert_line -= lines_removed
+
+                # Adjust search range
+                check_end -= (block_end - block_start + 1)
+
+                # Continue from same position
+                i = block_start
+            else:
+                i += 1
+        else:
+            i += 1
+
+    return lines, insert_line, blocks_removed
+
+
 def generate_comment_block(route: RouteUsage) -> str:
     """Generate the comment block to add above the route definition."""
     if not route.has_usage:
         return (
-            "# START: USAGES TOOL\n"
+            "# START: ROUTE USAGES TOOL\n"
             "# No Usages: Please Check Before Deleting\n"
-            "# END: USAGES TOOL\n"
+            "# END: ROUTE USAGES TOOL\n"
         )
 
     # Build multi-line comment with usage locations
     # Use ./ prefix for workspace-relative paths that VSCode recognizes
-    lines = ["# START: USAGES TOOL"]
+    lines = ["# START: ROUTE USAGES TOOL"]
     for location in route.usage_locations:
         # Extract file path and line number
         if ':' in location:
@@ -117,7 +179,7 @@ def generate_comment_block(route: RouteUsage) -> str:
             lines.append(f"# ./{file_path}:{line_num}")
         else:
             lines.append(f"# ./{location}")
-    lines.append("# END: USAGES TOOL")
+    lines.append("# END: ROUTE USAGES TOOL")
 
     return '\n'.join(lines) + '\n'
 
@@ -160,13 +222,14 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
             # Scan backwards to find the start of decorators
             # The reported line is the @api.route() or @aade_bp.route() decorator
             # But there might be other decorators above it like @authenticatenext
-            # ALSO: Stop if we find an existing USAGES TOOL comment block to replace
+            # ALSO: Stop if we find an existing comment block (legacy or new) to replace
             insert_line = decorator_line
             for i in range(decorator_line - 1, max(0, decorator_line - 10), -1):
                 line_content = lines[i].strip()
 
-                # If we encounter an existing USAGES TOOL comment, that's where we insert
-                if '# START: USAGES TOOL' in line_content:
+                # If we encounter existing comment blocks (legacy or new format), that's where we insert
+                if ('# START: USAGES TOOL' in line_content or
+                    '# START: ROUTE USAGES TOOL' in line_content):
                     insert_line = i
                     break
 
@@ -204,48 +267,31 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
                     seen.add(loc)
                     unique_locations.append(loc)
 
-            # Check if comment already exists (look for START: USAGES TOOL marker)
-            check_start = max(0, insert_line - 10)  # Check up to 10 lines above
-            existing_start_line = None
-            existing_end_line = None
+            # Remove ALL existing comment blocks (legacy and new format)
+            lines, insert_line, blocks_removed = remove_old_blocks(lines, insert_line, search_range=15)
 
-            for i in range(check_start, insert_line):
-                if '# START: USAGES TOOL' in lines[i]:
-                    existing_start_line = i
-                    # Now find the END marker
-                    for j in range(i + 1, min(insert_line + 5, len(lines))):
-                        if '# END: USAGES TOOL' in lines[j]:
-                            existing_end_line = j
-                            break
-                    break
-
-            # Remove existing comment block if found
-            if existing_start_line is not None and existing_end_line is not None:
-                # Remove the old block (all lines from start to end, inclusive)
-                del lines[existing_start_line:existing_end_line + 1]
-                # Adjust insert line since we removed lines above it
-                insert_line = insert_line - (existing_end_line - existing_start_line + 1)
-                action = "🔄 Replacing"
+            if blocks_removed > 0:
+                action = f"🔄 Replacing ({blocks_removed} old block{'s' if blocks_removed > 1 else ''})"
             else:
                 action = "✅ Adding new"
 
-            # Generate comment block for merged routes
+            # Generate comment block for merged routes with NEW marker names
             # Only treat as having usage if there are actual unique locations
             if has_any_usage and len(unique_locations) > 0:
-                comment_lines = ["# START: USAGES TOOL"]
+                comment_lines = ["# START: ROUTE USAGES TOOL"]
                 for location in unique_locations:
                     if ':' in location:
                         location_file, line_num = location.rsplit(':', 1)
                         comment_lines.append(f"# ./{location_file}:{line_num}")
                     else:
                         comment_lines.append(f"# ./{location}")
-                comment_lines.append("# END: USAGES TOOL")
+                comment_lines.append("# END: ROUTE USAGES TOOL")
                 comment = '\n'.join(comment_lines) + '\n'
             else:
                 comment = (
-                    "# START: USAGES TOOL\n"
+                    "# START: ROUTE USAGES TOOL\n"
                     "# No Usages: Please Check Before Deleting\n"
-                    "# END: USAGES TOOL\n"
+                    "# END: ROUTE USAGES TOOL\n"
                 )
 
             # Insert the comment
