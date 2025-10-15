@@ -212,8 +212,9 @@ class FlaskRouteAnalyzer:
 
             # Try to find multi-line axios/fetch calls
             # Pattern for axios.method( followed by URL on next lines
+            # Handles: axios.get(), axios\n.get(), axios.get(\nurl), axios\n.get(\nurl)
             multiline_axios_pattern = re.compile(
-                r'axios\.(?P<method>get|post|put|delete|patch)\s*\(\s*\n?\s*[`"\'](?P<url>[^`"\']+)[`"\']',
+                r'axios\s*\n?\s*\.(?P<method>get|post|put|delete|patch)\s*\(\s*\n?\s*[`"\'](?P<url>[^`"\']+)[`"\']',
                 re.MULTILINE,
             )
             multiline_fetch_pattern = re.compile(
