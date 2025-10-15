@@ -1,3 +1,9 @@
+## v0.1.6 (2025-10-15)
+
+### Fix
+
+- properly detect and replace existing USAGES TOOL comment blocks
+
 ## v0.1.5 (2025-10-15)
 
 ### Fix
