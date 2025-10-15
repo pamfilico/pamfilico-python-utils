@@ -1,3 +1,9 @@
+## v0.1.8 (2025-10-15)
+
+### Fix
+
+- ensure comments are ALWAYS placed BEFORE decorators
+
 ## v0.1.7 (2025-10-15)
 
 ### Feat
