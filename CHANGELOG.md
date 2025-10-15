@@ -1,3 +1,9 @@
+## v0.3.2 (2025-10-15)
+
+### Fix
+
+- replace escaped newlines with actual newlines in markdown report
+
 ## v0.3.1 (2025-10-15)
 
 ### Fix
