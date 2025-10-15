@@ -160,14 +160,22 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
             # Scan backwards to find the start of decorators
             # The reported line is the @api.route() or @aade_bp.route() decorator
             # But there might be other decorators above it like @authenticatenext
+            # ALSO: Stop if we find an existing USAGES TOOL comment block to replace
             insert_line = decorator_line
             for i in range(decorator_line - 1, max(0, decorator_line - 10), -1):
                 line_content = lines[i].strip()
+
+                # If we encounter an existing USAGES TOOL comment, that's where we insert
+                if '# START: USAGES TOOL' in line_content:
+                    insert_line = i
+                    break
+
                 # Stop if we hit a non-decorator, non-comment, non-blank line
                 if line_content and not line_content.startswith('@') and not line_content.startswith('#'):
                     # Found a non-decorator line, insert after it
                     insert_line = i + 1
                     break
+
                 # If it's a decorator, continue scanning backwards
                 if line_content.startswith('@'):
                     insert_line = i
