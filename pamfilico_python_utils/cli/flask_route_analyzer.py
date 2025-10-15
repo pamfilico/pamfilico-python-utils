@@ -51,6 +51,22 @@ class FlaskRouteAnalyzer:
         r'axios\.(?P<method>get|post|put|delete|patch)\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']'
     )
     FETCH_PATTERN = re.compile(r'fetch\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']')
+
+    # Regex patterns for wrapper function calls (from @/actions/*)
+    # Matches: get<Type>('/api/...', ...) or get('/api/...', ...)
+    WRAPPER_GET_PATTERN = re.compile(
+        r'\bget\s*(?:<[^>]+>)?\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']'
+    )
+    WRAPPER_POST_PATTERN = re.compile(
+        r'\bpost\s*(?:<[^>]+>)?\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']'
+    )
+    WRAPPER_PUT_PATTERN = re.compile(
+        r'\bput\s*(?:<[^>]+>)?\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']'
+    )
+    WRAPPER_DELETE_PATTERN = re.compile(
+        r'\bdelete\s*(?:<[^>]+>)?\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']'
+    )
+
     TEMPLATE_VAR_PATTERN = re.compile(r"\$\{[^}]+\}")
 
     # Known blueprint prefixes
@@ -274,6 +290,33 @@ class FlaskRouteAnalyzer:
 
                 key = f"{method} {url}"
                 self.usages[key].append(usage)
+
+            # Find wrapper function calls (get, post, put, delete from @/actions/*)
+            # These are TypeScript wrapper functions that internally call axios
+            wrapper_patterns = [
+                (self.WRAPPER_GET_PATTERN, "GET"),
+                (self.WRAPPER_POST_PATTERN, "POST"),
+                (self.WRAPPER_PUT_PATTERN, "PUT"),
+                (self.WRAPPER_DELETE_PATTERN, "DELETE"),
+            ]
+
+            for pattern, method in wrapper_patterns:
+                for match in pattern.finditer(content):
+                    url = match.group("url")
+
+                    # Find line number
+                    line_num = content[: match.start()].count("\n") + 1
+
+                    usage = UsageInfo(
+                        file_path=str(file_path.relative_to(frontend_root.parent)),
+                        line_number=line_num,
+                        line_content=(
+                            lines[line_num - 1].strip() if line_num <= len(lines) else ""
+                        ),
+                    )
+
+                    key = f"{method} {url}"
+                    self.usages[key].append(usage)
 
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
