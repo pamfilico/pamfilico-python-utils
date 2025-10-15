@@ -1,3 +1,9 @@
+## v0.2.0 (2025-10-15)
+
+### Feat
+
+- add remove_route_usage_comments CLI tool
+
 ## v0.1.8 (2025-10-15)
 
 ### Fix
