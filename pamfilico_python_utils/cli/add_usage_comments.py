@@ -80,6 +80,10 @@ def parse_markdown_file(md_path: Path, has_usage: bool) -> List[RouteUsage]:
                 if match:
                     usage_locations.append(match.group(1))
 
+        # If marked as having usage but no locations found, treat as no usage
+        # This handles routes in with_usage.md that have no actual frontend calls
+        actual_has_usage = has_usage and len(usage_locations) > 0
+
         routes.append(RouteUsage(
             method=method,
             path=path,
@@ -87,7 +91,7 @@ def parse_markdown_file(md_path: Path, has_usage: bool) -> List[RouteUsage]:
             line_number=line_number,
             function_name=function_name,
             usage_locations=usage_locations,
-            has_usage=has_usage
+            has_usage=actual_has_usage
         ))
 
     return routes
@@ -147,11 +151,31 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
         modified = False
         for line_number, line_routes in routes_sorted:
             # Adjust for 0-based indexing
-            insert_line = line_number - 1
+            decorator_line = line_number - 1
 
-            if insert_line < 0 or insert_line >= len(lines):
+            if decorator_line < 0 or decorator_line >= len(lines):
                 print(f"  ⚠️  Invalid line number {line_number}")
                 continue
+
+            # Scan backwards to find the start of decorators
+            # The reported line is the @api.route() or @aade_bp.route() decorator
+            # But there might be other decorators above it like @authenticatenext
+            insert_line = decorator_line
+            for i in range(decorator_line - 1, max(0, decorator_line - 10), -1):
+                line_content = lines[i].strip()
+                # Stop if we hit a non-decorator, non-comment, non-blank line
+                if line_content and not line_content.startswith('@') and not line_content.startswith('#'):
+                    # Found a non-decorator line, insert after it
+                    insert_line = i + 1
+                    break
+                # If it's a decorator, continue scanning backwards
+                if line_content.startswith('@'):
+                    insert_line = i
+            else:
+                # We scanned all the way back or hit the start of file
+                # Check if line 0 is a decorator
+                if decorator_line > 0 and lines[0].strip().startswith('@'):
+                    insert_line = 0
 
             # Merge all usage locations from all routes at this line
             all_usage_locations = []
