@@ -1,3 +1,9 @@
+## v0.3.0 (2025-10-15)
+
+### Feat
+
+- add update_route_usage_comments CLI to chain all three tools
+
 ## v0.2.2 (2025-10-15)
 
 ## v0.2.1 (2025-10-15)
