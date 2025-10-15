@@ -1,3 +1,9 @@
+## v0.1.7 (2025-10-15)
+
+### Feat
+
+- migrate to descriptive ROUTE USAGES TOOL markers and clean all duplicates
+
 ## v0.1.6 (2025-10-15)
 
 ### Fix
