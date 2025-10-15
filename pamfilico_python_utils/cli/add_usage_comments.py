@@ -97,68 +97,6 @@ def parse_markdown_file(md_path: Path, has_usage: bool) -> List[RouteUsage]:
     return routes
 
 
-def remove_old_blocks(lines: List[str], insert_line: int, search_range: int = 15) -> tuple:
-    """Remove all existing USAGES TOOL comment blocks (legacy and new format).
-
-    Removes blocks with markers:
-    - Legacy: # START: USAGES TOOL ... # END: USAGES TOOL
-    - New: # START: ROUTE USAGES TOOL ... # END: ROUTE USAGES TOOL
-
-    Args:
-        lines: List of file lines
-        insert_line: Target line number for insertion
-        search_range: How many lines above/below to search
-
-    Returns:
-        Tuple of (modified_lines, adjusted_insert_line, blocks_removed_count)
-    """
-    check_start = max(0, insert_line - search_range)
-    check_end = min(len(lines), insert_line + search_range)
-
-    blocks_removed = 0
-    i = check_start
-
-    while i < check_end:
-        if i >= len(lines):
-            break
-
-        # Check for BOTH legacy and new markers
-        if ('# START: USAGES TOOL' in lines[i] or
-            '# START: ROUTE USAGES TOOL' in lines[i]):
-
-            block_start = i
-            block_end = None
-
-            # Find matching END marker (legacy or new)
-            for j in range(i + 1, min(len(lines), i + 10)):
-                if ('# END: USAGES TOOL' in lines[j] or
-                    '# END: ROUTE USAGES TOOL' in lines[j]):
-                    block_end = j
-                    break
-
-            if block_end is not None:
-                # Remove entire block
-                del lines[block_start:block_end + 1]
-                blocks_removed += 1
-
-                # Adjust insert_line if removed lines before it
-                if block_start < insert_line:
-                    lines_removed = (block_end - block_start + 1)
-                    insert_line -= lines_removed
-
-                # Adjust search range
-                check_end -= (block_end - block_start + 1)
-
-                # Continue from same position
-                i = block_start
-            else:
-                i += 1
-        else:
-            i += 1
-
-    return lines, insert_line, blocks_removed
-
-
 def generate_comment_block(route: RouteUsage) -> str:
     """Generate the comment block to add above the route definition."""
     if not route.has_usage:
@@ -213,40 +151,11 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
         modified = False
         for line_number, line_routes in routes_sorted:
             # Adjust for 0-based indexing
-            decorator_line = line_number - 1
+            insert_line = line_number - 1
 
-            if decorator_line < 0 or decorator_line >= len(lines):
+            if insert_line < 0 or insert_line >= len(lines):
                 print(f"  ⚠️  Invalid line number {line_number}")
                 continue
-
-            # Scan backwards to find the start of decorators
-            # The reported line is the @api.route() or @aade_bp.route() decorator
-            # But there might be other decorators above it like @authenticatenext
-            # ALSO: Stop if we find an existing comment block (legacy or new) to replace
-            insert_line = decorator_line
-            for i in range(decorator_line - 1, max(0, decorator_line - 10), -1):
-                line_content = lines[i].strip()
-
-                # If we encounter existing comment blocks (legacy or new format), that's where we insert
-                if ('# START: USAGES TOOL' in line_content or
-                    '# START: ROUTE USAGES TOOL' in line_content):
-                    insert_line = i
-                    break
-
-                # Stop if we hit a non-decorator, non-comment, non-blank line
-                if line_content and not line_content.startswith('@') and not line_content.startswith('#'):
-                    # Found a non-decorator line, insert after it
-                    insert_line = i + 1
-                    break
-
-                # If it's a decorator, continue scanning backwards
-                if line_content.startswith('@'):
-                    insert_line = i
-            else:
-                # We scanned all the way back or hit the start of file
-                # Check if line 0 is a decorator
-                if decorator_line > 0 and lines[0].strip().startswith('@'):
-                    insert_line = 0
 
             # Merge all usage locations from all routes at this line
             all_usage_locations = []
@@ -267,32 +176,28 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
                     seen.add(loc)
                     unique_locations.append(loc)
 
-            # Remove ALL existing comment blocks (legacy and new format)
-            lines, insert_line, blocks_removed = remove_old_blocks(lines, insert_line, search_range=15)
+            # Check if comment already exists (look for START: USAGES TOOL or START: ROUTE USAGES TOOL marker)
+            check_start = max(0, insert_line - 10)  # Check up to 10 lines above
+            existing_start_line = None
+            existing_end_line = None
 
-            # CRITICAL: After removing blocks, RE-SCAN to find where decorators actually start
-            # This ensures we ALWAYS insert BEFORE decorators, not inside function body
-            decorator_line = line_number - 1  # Original decorator line (0-indexed)
-            if decorator_line >= len(lines):
-                decorator_line = len(lines) - 1
-
-            insert_line = decorator_line
-            for i in range(decorator_line - 1, max(0, decorator_line - 10), -1):
-                if i >= len(lines):
-                    continue
-                line_content = lines[i].strip()
-
-                # Stop if we hit a non-decorator, non-blank line
-                if line_content and not line_content.startswith('@'):
-                    insert_line = i + 1
+            for i in range(check_start, insert_line):
+                if '# START: USAGES TOOL' in lines[i] or '# START: ROUTE USAGES TOOL' in lines[i]:
+                    existing_start_line = i
+                    # Now find the END marker
+                    for j in range(i + 1, min(insert_line + 5, len(lines))):
+                        if '# END: USAGES TOOL' in lines[j] or '# END: ROUTE USAGES TOOL' in lines[j]:
+                            existing_end_line = j
+                            break
                     break
 
-                # If it's a decorator, continue scanning backwards
-                if line_content.startswith('@'):
-                    insert_line = i
-
-            if blocks_removed > 0:
-                action = f"🔄 Replacing ({blocks_removed} old block{'s' if blocks_removed > 1 else ''})"
+            # Remove existing comment block if found
+            if existing_start_line is not None and existing_end_line is not None:
+                # Remove the old block (all lines from start to end, inclusive)
+                del lines[existing_start_line:existing_end_line + 1]
+                # Adjust insert line since we removed lines above it
+                insert_line = insert_line - (existing_end_line - existing_start_line + 1)
+                action = "🔄 Replacing"
             else:
                 action = "✅ Adding new"
 
