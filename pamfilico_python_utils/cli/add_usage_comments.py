@@ -222,7 +222,8 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
                 action = "✅ Adding new"
 
             # Generate comment block for merged routes
-            if has_any_usage:
+            # Only treat as having usage if there are actual unique locations
+            if has_any_usage and len(unique_locations) > 0:
                 comment_lines = ["# START: USAGES TOOL"]
                 for location in unique_locations:
                     if ':' in location:
