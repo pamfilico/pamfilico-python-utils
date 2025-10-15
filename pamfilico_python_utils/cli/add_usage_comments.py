@@ -270,6 +270,27 @@ def add_comments_to_file(backend_base: Path, routes_by_file: Dict[str, List[Rout
             # Remove ALL existing comment blocks (legacy and new format)
             lines, insert_line, blocks_removed = remove_old_blocks(lines, insert_line, search_range=15)
 
+            # CRITICAL: After removing blocks, RE-SCAN to find where decorators actually start
+            # This ensures we ALWAYS insert BEFORE decorators, not inside function body
+            decorator_line = line_number - 1  # Original decorator line (0-indexed)
+            if decorator_line >= len(lines):
+                decorator_line = len(lines) - 1
+
+            insert_line = decorator_line
+            for i in range(decorator_line - 1, max(0, decorator_line - 10), -1):
+                if i >= len(lines):
+                    continue
+                line_content = lines[i].strip()
+
+                # Stop if we hit a non-decorator, non-blank line
+                if line_content and not line_content.startswith('@'):
+                    insert_line = i + 1
+                    break
+
+                # If it's a decorator, continue scanning backwards
+                if line_content.startswith('@'):
+                    insert_line = i
+
             if blocks_removed > 0:
                 action = f"🔄 Replacing ({blocks_removed} old block{'s' if blocks_removed > 1 else ''})"
             else:
