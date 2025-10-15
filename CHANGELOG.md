@@ -1,3 +1,9 @@
+## v0.1.5 (2025-10-15)
+
+### Fix
+
+- ensure empty usage lists generate 'No Usages' message
+
 ## v0.1.4 (2025-10-15)
 
 ### Fix
