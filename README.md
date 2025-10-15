@@ -27,9 +27,20 @@ pip install git+https://github.com/yourusername/pamfilico-python-utils.git
   - `jwt_authenticator_with_scopes`: JWT authentication decorator with role-based access
   - `validate_uuid_params`: UUID parameter validation decorator
   - `admin_required`: Admin token authentication decorator
+  - `collection`: Automatic pagination decorator with search and sorting
   - `standard_response`: Consistent API response formatting
   - Custom error classes and Flask error handlers
   - JWE token encryption/decryption utilities
+
+- **Storage Utilities**: Cloud object storage clients
+  - `DigitalOceanSpacesClient`: S3-compatible client for DigitalOcean Spaces
+  - Simple upload and fetch operations
+  - Public URL generation
+
+- **CLI Tools**: Command-line utilities
+  - `flask_route_usage_report`: Analyze Flask routes and find their frontend usage
+  - Generates comprehensive markdown reports
+  - Detects unused routes (dead code)
 
 ## Usage
 
@@ -57,43 +68,112 @@ class User(Base, DateTimeMixin, NextAuthUserMixin):
 ```python
 from flask import Flask
 from pamfilico_python_utils.flask import (
-    jwt_authenticator_with_scopes,
+    configure_authenticatenext,
+    authenticatenext,
     validate_uuid_params,
-    admin_required,
     standard_response,
     init_errors,
-    AuthenticationError,
-    NotFoundError,
 )
+from app.database.engine import DBsession
+from app.database.models.user import User
+from app.database.models.staff import Staff
 
 app = Flask(__name__)
+
+# Configure authenticatenext ONCE during app initialization
+configure_authenticatenext(
+    db_session_factory=DBsession,
+    masterModel=User,
+    slaveModel=Staff
+)
 
 # Initialize error handlers
 init_errors(app)
 
-# Protected endpoint with JWT authentication
-@app.route('/api/protected')
-@jwt_authenticator_with_scopes(['user'])
-def protected_endpoint(auth):
+# Now use @authenticatenext cleanly (matches backend pattern exactly!)
+@app.route('/api/customer/<customer_id>')
+@validate_uuid_params
+@authenticatenext
+def get_customer(customer_id, auth):
     # auth dict contains: email, id, role
     return standard_response(
-        data={"message": f"Hello {auth['email']}"},
+        data={"customer_id": customer_id, "user": auth['email']},
         ui_message="Success",
         status_code=200
     )
 
-# UUID validation
-@app.route('/api/item/<item_id>')
-@validate_uuid_params
-def get_item(item_id):
-    # item_id is validated as UUID
-    return standard_response(data={"item_id": item_id})
-
-# Admin-only endpoint
+# With scopes
 @app.route('/api/admin/dashboard')
-@admin_required()
-def admin_dashboard():
+@authenticatenext(['admin'])
+def admin_dashboard(auth):
     return standard_response(data={"dashboard": "data"})
+```
+
+### Flask Pagination
+
+```python
+from flask import Flask
+from pamfilico_python_utils.flask import collection, jwt_authenticator_with_scopes
+from your_app.database import session
+from your_app.models import Vehicle
+from your_app.schemas import VehicleGetSchema
+
+app = Flask(__name__)
+
+# Paginated endpoint with search and sorting
+@app.route('/api/vehicles')
+@collection(
+    VehicleGetSchema,
+    searchable_fields=['name', 'license_plate', 'web_title'],
+    sortable_fields=['name', 'created_at', 'license_plate']
+)
+@jwt_authenticator_with_scopes(['user'])
+def list_vehicles(auth):
+    # Return a SQLAlchemy query object (not executed)
+    return session.query(Vehicle).filter_by(user_id=auth['id'])
+
+# Usage:
+# GET /api/vehicles?page_number=1&results_per_page=20
+# GET /api/vehicles?search_by=name&search_value=toyota
+# GET /api/vehicles?order_by=created_at&order_direction=desc
+```
+
+### DigitalOcean Spaces Storage
+
+```python
+from pamfilico_python_utils import DigitalOceanSpacesClient
+
+# Initialize client (reads from environment variables by default)
+# Required env vars: SPACES_REGION, SPACES_BUCKET, SPACES_API_KEY, SPACES_SECRET_KEY
+client = DigitalOceanSpacesClient()
+
+# Or initialize with explicit credentials
+client = DigitalOceanSpacesClient(
+    region='nyc3',
+    bucket='my-bucket',
+    api_key='your-api-key',
+    secret_key='your-secret-key'
+)
+
+# Upload a file object (like from Flask request.files)
+@app.route('/upload', methods=['POST'])
+def upload_logo():
+    logo = request.files.get('logo')
+    url = client.upload_fileobj(
+        file_obj=logo,
+        object_name=f'users/{user_id}/logo/header_logo.png',
+        content_type=logo.content_type,
+        acl='public-read'
+    )
+    # Returns: 'https://nyc3.digitaloceanspaces.com/my-bucket/users/123/logo/header_logo.png'
+    return {'url': url}
+
+# Fetch an object
+obj = client.fetch_object('users/123/logo/header_logo.png')
+content = obj['Body'].read()
+
+# Get public URL without fetching
+url = client.get_public_url('users/123/logo/header_logo.png')
 ```
 
 ### Individual Imports
@@ -111,11 +191,67 @@ from pamfilico_python_utils.sqlalchemy import (
 
 # Flask utilities
 from pamfilico_python_utils.flask import (
+    collection,
     jwt_authenticator_with_scopes,
     validate_uuid_params,
     standard_response,
     init_errors,
 )
+
+# Storage utilities
+from pamfilico_python_utils.storage import DigitalOceanSpacesClient
+
+# CLI utilities (for programmatic use)
+from pamfilico_python_utils.cli import FlaskRouteAnalyzer, RouteInfo, UsageInfo
+```
+
+### Flask Route Usage Report CLI
+
+Analyze Flask routes and their frontend usage to identify dead code and track API consumption:
+
+```bash
+# From your monorepo root
+poetry run flask_route_usage_report
+
+# Custom paths
+poetry run flask_route_usage_report \
+  --backend ./my-backend \
+  --api-path app/api/v1 \
+  --frontends ./frontend1 ./frontend2 \
+  --frontend-src src
+
+# View help
+poetry run flask_route_usage_report --help
+```
+
+**Output:**
+- `flask_routes_with_usage.md` - Routes with frontend usage (106 routes, 148 calls)
+- `flask_routes_without_usage.md` - Unused routes that may be dead code (63 routes)
+
+**Features:**
+- Extracts Flask routes from backend using regex parsing
+- Scans frontend TypeScript/JavaScript files for axios/fetch API calls
+- Fuzzy matching for dynamic routes (`/api/user/<user_id>`)
+- Handles multi-line API calls and template variables
+- Groups by HTTP method (GET, POST, PUT, DELETE, PATCH)
+- Shows exact file locations with line numbers
+
+**Programmatic Usage:**
+
+```python
+from pamfilico_python_utils.cli import FlaskRouteAnalyzer
+
+analyzer = FlaskRouteAnalyzer(
+    backend_root="./backend",
+    frontend_roots=["./frontend1", "./frontend2"],
+    api_subpath="app/api/v1",
+    frontend_src_subpath="src"
+)
+
+# Extract and analyze
+analyzer.extract_routes()
+analyzer.extract_frontend_usages()
+analyzer.generate_split_reports()
 ```
 
 ## Development

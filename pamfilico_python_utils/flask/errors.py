@@ -2,7 +2,7 @@ import logging
 import traceback
 
 from marshmallow.exceptions import ValidationError
-from sqlalchemy.exc import DataError, IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from werkzeug.exceptions import HTTPException
 
 from pamfilico_python_utils.flask.responses import standard_response
@@ -87,7 +87,82 @@ class StripeError(BaseError):
     pass
 
 
+class ForbidenError(BaseError):
+    pass
+
+
+class ResourceExistsError(BaseError):
+    pass
+
+
+class UnknownException(BaseError):
+    pass
+
+
+class TokenError(BaseError):
+    pass
+
+
+class NotAuthorizedToView(BaseError):
+    pass
+
+
+# Car Errors
+class CarIsCurrentlyBookedError(BaseError):
+    pass
+
+
+class CarHasPendingBookingsError(BaseError):
+    pass
+
+
+# Booking Errors
+class BookingNotFoundError(BaseError):
+    pass
+
+
+class BookingHasPaymentError(BaseError):
+    pass
+
+
+# Customer Errors
+class CustomerNotFoundError(BaseError):
+    pass
+
+
+class CustomerHasBookingError(BaseError):
+    pass
+
+
+class PaymentsExistError(BaseError):
+    pass
+
+
+class PaymentHasBookingError(BaseError):
+    pass
+
+
 def init_errors(app):
+    @app.errorhandler(409)
+    def conflict_error(error):
+        logger.error(error)
+        traceback.print_exc()
+        return standard_response(
+            error=True,
+            message="Conflict",
+            ui_message="Conflict",
+            status_code=409,
+        )
+
+    @app.errorhandler(PermissionError)
+    def permission_error(error):
+        return standard_response(
+            error=True,
+            message="Insuficient Permissions",
+            ui_message="Insuficient Permissions",
+            status_code=403,
+        )
+
     @app.errorhandler(NotFoundError)
     def resource_not_found_error(error):
         logger.info("NotFoundError: %s", error)
@@ -97,7 +172,7 @@ def init_errors(app):
     @app.errorhandler(VehicleError)
     def vehicle_error(error):
         logger.error("VehicleError: %s", error)
-        return standard_response(ui_message=str(error), status_code=400)
+        return standard_response(error=True, ui_message=str(error), status_code=400)
 
     @app.errorhandler(AuthenticationError)
     def authentication_error(error):
@@ -107,21 +182,35 @@ def init_errors(app):
 
     @app.errorhandler(ValidationError)
     def validation_error(error):
-        logger.error("ValidationError: %s", error)
-        return standard_response(ui_message=str(error), status_code=400)
+        logger.error(error.messages)
+        print(error.messages)
+        errors = []
+        for field, messages in error.messages.items():
+            if isinstance(messages, list):
+                errors.extend([f"{field}: {msg}" for msg in messages])
+            else:
+                errors.append(f"{field}: {messages}")
+        error_message = "; ".join(errors) if errors else "Validation error"
+        return standard_response(
+            error=True,
+            message=error_message,
+            ui_message=error_message,
+            status_code=400,
+        )
 
     @app.errorhandler(ValueError)
     def value_error(error):
         logger.error("ValueError: %s", error)
         traceback_info = traceback.format_exc()
         logger.error("Traceback: %s", traceback_info)
-        return standard_response(ui_message=str(error), status_code=400)
+        return standard_response(error=True, ui_message=str(error), status_code=400)
 
     @app.errorhandler(AlreadyExistsError)
     def resource_exist_error(error):
         logger.error("ResourceExistsError: %s", error)
         msg = str(error)
         return standard_response(
+            error=True,
             ui_message=msg,
             status_code=409,
         )
@@ -130,67 +219,74 @@ def init_errors(app):
     def data_error(error):
         logger.error("DataError: %s", error)
         return standard_response(
+            error=True,
             ui_message="Invalid data provided.",
             status_code=400,
         )
 
     @app.errorhandler(IntegrityError)
     def integrity_error(error):
-        logger.error("IntegrityError: %s", error)
-        traceback_info = traceback.format_exc()
-        logger.error("Traceback: %s", traceback_info)
         msg = str(error)
-        if "unique" in str(error):
-            msg = "Object already exists."
         return standard_response(
-            ui_message=msg,
+            error=True,
+            message=msg,
+            ui_message="Conflict",
             status_code=409,
         )
 
+    @app.errorhandler(OperationalError)
+    def operational_error(error):
+        msg = str(error)
+        logger.error(error)
+        return standard_response(
+            error=True,
+            message=f"Database Error: {msg}",
+            ui_message="Database Error",
+            status_code=500,
+        )
+
     @app.errorhandler(DatabaseError)
-    def integrity_errosr(error):
-        logger.error("IntegrityError: %s", error)
+    def database_error_handler(error):
+        logger.error("DatabaseError: %s", error)
         traceback_info = traceback.format_exc()
         logger.error("Traceback: %s", traceback_info)
         msg = str(error)
         if "unique" in str(error):
             msg = "Object already exists."
         return standard_response(
+            error=True,
             ui_message=msg,
             status_code=409,
         )
 
     @app.errorhandler(500)
     def server_error(error):
-        logger.error("500Error: %s", error)
-        traceback_info = traceback.format_exc()
-        logger.error("Traceback: %s", traceback_info)
+        logger.error(error)
         return standard_response(
+            error=True,
+            message=str(error),
             ui_message="Internal Server Error",
             status_code=500,
         )
 
     @app.errorhandler(Exception)
-    def handle_exception(error):
-        logger.error("Exception: %s", error)
-        traceback_info = traceback.format_exc()
-        logger.error("Traceback: %s", traceback_info)
-        if isinstance(error, HTTPException):
-            return error
+    def handle_exception(e):
+        logger.error(e)
+        traceback.print_exc()
+        if isinstance(e, HTTPException):
+            return e
+        print(e)
         res = {
             "code": 500,
             "errorType": "Internal Server Error",
             "errorMessage": "Something went really wrong!",
-            # "traceback": tb,
         }
-        traceback_info = traceback.format_exc()
         if DEBUG:
-            msg = f"{error} - Traceback: {traceback_info}"
-            res["errorMessage"] = msg
-        logger.error("Exception: %s", error)
-        traceback_info = traceback.format_exc()
-        logger.error("Traceback: %s", traceback_info)
+            res["errorMessage"] = e if hasattr(e, "message") else f"{e}"
+
         return standard_response(
+            error=True,
+            message=str(res.get("errorMessage", "Internal Server Error")),
             ui_message="Internal Server Error",
             status_code=500,
         )
@@ -202,6 +298,7 @@ def init_errors(app):
         traceback_info = traceback.format_exc()
         logger.error("Traceback: %s", traceback_info)
         return standard_response(
+            error=True,
             ui_message=msg,
             status_code=404,
         )

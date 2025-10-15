@@ -7,6 +7,10 @@ from pamfilico_python_utils.flask.auth import (
     jwt_authenticator_with_scopes,
     validate_uuid_params,
 )
+from pamfilico_python_utils.flask.auth_next import (
+    authenticatenext,
+    configure_authenticatenext,
+)
 from pamfilico_python_utils.flask.errors import (
     AlreadyExistsError,
     AuthenticationError,
@@ -26,11 +30,14 @@ from pamfilico_python_utils.flask.errors import (
     VehicleError,
     init_errors,
 )
+from pamfilico_python_utils.flask.pagination import collection
 from pamfilico_python_utils.flask.responses import standard_response
 
 __all__ = [
     # Auth
     "admin_required",
+    "authenticatenext",
+    "configure_authenticatenext",
     "decode_jwe_token",
     "encode_jwe",
     "jwt_authenticator_with_scopes",
@@ -53,6 +60,8 @@ __all__ = [
     "SubscriptionExpiredError",
     "VehicleError",
     "init_errors",
+    # Pagination
+    "collection",
     # Responses
     "standard_response",
 ]

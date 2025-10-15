@@ -10,6 +10,7 @@ from pamfilico_python_utils.sqlalchemy import (
     NextAuthVerificationTokenMixin,
     generate_uuid,
 )
+from pamfilico_python_utils.storage import DigitalOceanSpacesClient
 
 __all__ = [
     "DateTimeMixin",
@@ -18,4 +19,5 @@ __all__ = [
     "NextAuthUserMixin",
     "NextAuthVerificationTokenMixin",
     "generate_uuid",
+    "DigitalOceanSpacesClient",
 ]
