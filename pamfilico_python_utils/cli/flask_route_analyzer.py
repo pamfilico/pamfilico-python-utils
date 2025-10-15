@@ -426,7 +426,7 @@ class FlaskRouteAnalyzer:
                     )
                     f.write(f"**Function:** `{route.function_name}()`\n\n")
                     f.write(
-                        f"**Frontend Usage:** ({len(usages)} location{'s' if len(usages) != 1 else ''})\\n\\n"
+                        f"**Frontend Usage:** ({len(usages)} location{'s' if len(usages) != 1 else ''})\n\n"
                     )
 
                     for usage in usages:
