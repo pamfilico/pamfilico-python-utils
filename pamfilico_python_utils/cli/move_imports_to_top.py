@@ -35,7 +35,7 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
     """
     lines = file_content.split('\n')
     imports = []
-    cleaned_lines = []
+    skip_lines = set()  # Track which line numbers to skip in cleaned output
     
     i = 0
     while i < len(lines):
@@ -50,7 +50,7 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
             import_lines = []
             current_line = stripped
             import_lines.append(current_line)
-            lines_consumed = 1  # Track how many lines we're consuming
+            skip_lines.add(i)  # Mark this line to skip
             
             # Check if this is a multi-line import (contains opening parenthesis)
             if '(' in current_line and ')' not in current_line:
@@ -60,23 +60,26 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
                     next_line = lines[j]
                     next_stripped = next_line.strip()
                     
-                    # Check if this line is indented (part of the import)
-                    if next_line.startswith('    ') or next_line.startswith('\t') or not next_stripped:
-                        # Add the continuation line (preserve indentation for readability)
+                    # Mark this line to skip
+                    skip_lines.add(j)
+                    
+                    # Add the continuation line (preserve some indentation for readability)
+                    if next_stripped:  # Don't add empty lines
                         import_lines.append(next_stripped)
-                        lines_consumed += 1
-                        
-                        # Check if this line closes the import
-                        if ')' in next_stripped:
-                            break
-                    else:
-                        # Non-indented line - we've gone too far, break without consuming
+                    
+                    # Check if this line closes the import
+                    if ')' in next_stripped:
+                        j += 1  # Include the closing line
                         break
                         
                     j += 1
+                    
+                    # Safety check - don't go beyond reasonable limits
+                    if j - i > 20:  # Arbitrary limit to prevent infinite loops
+                        break
                 
-                # Update i to skip all the lines we consumed
-                i = i + lines_consumed
+                # Update i to continue after the multi-line import
+                i = j
             else:
                 # Single-line import
                 i += 1
@@ -86,9 +89,14 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
             if complete_import not in imports:
                 imports.append(complete_import)
         else:
-            # Keep this line
-            cleaned_lines.append(line)
+            # Regular line - continue
             i += 1
+    
+    # Build cleaned content by skipping marked lines
+    cleaned_lines = []
+    for idx, line in enumerate(lines):
+        if idx not in skip_lines:
+            cleaned_lines.append(line)
     
     return imports, '\n'.join(cleaned_lines)
 
