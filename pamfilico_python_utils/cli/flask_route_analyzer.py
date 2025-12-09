@@ -405,30 +405,54 @@ class FlaskRouteAnalyzer:
         if route.full_path == usage_path_clean:
             return True
 
+        # Handle axios baseURL scenario - frontend calls may not have /api/v1 prefix
+        # Try matching route without blueprint prefix against usage path
+        route_without_prefix = route.path  # This is the path without blueprint prefix
+        if route_without_prefix == usage_path_clean:
+            return True
+        
+        # Also try with leading slash added to usage path (common pattern)
+        if not usage_path_clean.startswith('/'):
+            usage_with_slash = '/' + usage_path_clean
+            if route.full_path == usage_with_slash or route_without_prefix == usage_with_slash:
+                return True
+
         # Segment-by-segment matching with dynamic parameters
-        route_segments = [s for s in route.full_path.split("/") if s]
-        usage_segments = [s for s in usage_path_clean.split("/") if s]
+        # Try both full route path and route path without blueprint prefix
+        paths_to_try = [route.full_path]
+        if route.path != route.full_path:
+            paths_to_try.append(route.path)
+        
+        for route_path_to_test in paths_to_try:
+            route_segments = [s for s in route_path_to_test.split("/") if s]
+            usage_segments = [s for s in usage_path_clean.split("/") if s]
 
-        if len(route_segments) != len(usage_segments):
-            return False
+            if len(route_segments) != len(usage_segments):
+                continue  # Try next path variant
 
-        for route_seg, usage_seg in zip(route_segments, usage_segments):
-            # Flask dynamic parameter pattern: <type:name> or <name>
-            if route_seg.startswith("<") and route_seg.endswith(">"):
-                # Dynamic segment - check if usage has template variable or dynamic content
-                if "${" in usage_seg or "{" in usage_seg:
-                    # Has template variable, counts as match
-                    continue
-                # Allow any non-empty segment as dynamic match (literal values)
-                if usage_seg:
-                    continue
-                return False
-            else:
-                # Static segment - must match exactly
-                if route_seg != usage_seg:
-                    return False
+            matches = True
+            for route_seg, usage_seg in zip(route_segments, usage_segments):
+                # Flask dynamic parameter pattern: <type:name> or <name>
+                if route_seg.startswith("<") and route_seg.endswith(">"):
+                    # Dynamic segment - check if usage has template variable or dynamic content
+                    if "${" in usage_seg or "{" in usage_seg:
+                        # Has template variable, counts as match
+                        continue
+                    # Allow any non-empty segment as dynamic match (literal values)
+                    if usage_seg:
+                        continue
+                    matches = False
+                    break
+                else:
+                    # Static segment - must match exactly
+                    if route_seg != usage_seg:
+                        matches = False
+                        break
+            
+            if matches:
+                return True
 
-        return True
+        return False
 
     def _debug_show_sample_routes(self) -> None:
         """Show sample routes found for debugging"""
