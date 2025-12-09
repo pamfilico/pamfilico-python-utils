@@ -274,8 +274,8 @@ def parse_arguments():
     # Load config from pyproject.toml
     config = load_config_from_pyproject()
 
-    # Set defaults from config or hardcoded defaults
-    default_backend = config.get("backend_path", "backend_carfast") if config else "backend_carfast"
+    # Set defaults from config or sensible defaults
+    default_backend = config.get("backend_path", "./") if config else "./"
     default_with_usage = config.get("with_usage_report", "flask_routes_with_usage.md") if config else "flask_routes_with_usage.md"
     default_without_usage = config.get("without_usage_report", "flask_routes_without_usage.md") if config else "flask_routes_without_usage.md"
 
@@ -302,7 +302,7 @@ Configuration:
   Settings can be defined in pyproject.toml:
 
   [tool.add_usage_comments]
-  backend_path = "backend_carfast"
+  backend_path = "./"
   with_usage_report = "flask_routes_with_usage.md"
   without_usage_report = "flask_routes_without_usage.md"
         """,
