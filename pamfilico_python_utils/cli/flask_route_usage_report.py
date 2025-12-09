@@ -127,6 +127,12 @@ Configuration:
         help=f"Source subdirectory within each frontend (default: {default_frontend_src})",
     )
 
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show debug output including sample routes and frontend calls found",
+    )
+
     return parser.parse_args()
 
 
@@ -168,6 +174,7 @@ def main():
         frontend_roots=[str(f) for f in frontend_roots],
         api_subpath=args.api_path,
         frontend_src_subpath=args.frontend_src,
+        verbose=args.verbose,
     )
 
     # Extract routes and usages

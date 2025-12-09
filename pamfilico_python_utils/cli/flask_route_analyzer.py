@@ -67,6 +67,12 @@ class FlaskRouteAnalyzer:
         r'\bdelete\s*(?:<[^>]+>)?\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']'
     )
 
+    # Regex patterns for axios instance calls (e.g., apiClient.get(), client.post())
+    # Matches: someIdentifier.get('/api/...', ...) or someIdentifier.post('/api/...', ...)
+    AXIOS_INSTANCE_PATTERN = re.compile(
+        r'\b\w+\.(?P<method>get|post|put|delete|patch)\s*(?:<[^>]+>)?\s*\(\s*[`"\'](?P<url>[^`"\']+)[`"\']'
+    )
+
     TEMPLATE_VAR_PATTERN = re.compile(r"\$\{[^}]+\}")
 
     # Known blueprint prefixes
@@ -81,11 +87,13 @@ class FlaskRouteAnalyzer:
         frontend_roots: List[str],
         api_subpath: str = "app/api/v1",
         frontend_src_subpath: str = "src",
+        verbose: bool = False,
     ):
         self.backend_root = Path(backend_root)
         self.frontend_roots = [Path(root) for root in frontend_roots]
         self.api_subpath = api_subpath
         self.frontend_src_subpath = frontend_src_subpath
+        self.verbose = verbose
         self.routes: List[RouteInfo] = []
         self.usages: Dict[str, List[UsageInfo]] = defaultdict(list)
 
@@ -105,6 +113,9 @@ class FlaskRouteAnalyzer:
             self._extract_routes_from_file(py_file)
 
         print(f"Found {len(self.routes)} routes in backend")
+        
+        if self.verbose and self.routes:
+            self._debug_show_sample_routes()
 
     def _extract_routes_from_file(self, file_path: Path) -> None:
         """Extract routes from a single Python file"""
@@ -218,6 +229,9 @@ class FlaskRouteAnalyzer:
                     self._extract_usages_from_file(file_path, frontend_root)
 
         print(f"Found {sum(len(v) for v in self.usages.values())} frontend API calls")
+        
+        if self.verbose and self.usages:
+            self._debug_show_sample_usages()
 
     def _extract_usages_from_file(self, file_path: Path, frontend_root: Path) -> None:
         """Extract API calls from a single frontend file"""
@@ -318,6 +332,26 @@ class FlaskRouteAnalyzer:
                     key = f"{method} {url}"
                     self.usages[key].append(usage)
 
+            # Find axios instance calls (e.g., apiClient.get(), aiServiceClient.post())
+            # These are axios instance method calls that are very common in modern projects
+            for match in self.AXIOS_INSTANCE_PATTERN.finditer(content):
+                url = match.group("url")
+                method = match.group("method").upper()
+
+                # Find line number
+                line_num = content[: match.start()].count("\n") + 1
+
+                usage = UsageInfo(
+                    file_path=str(file_path.relative_to(frontend_root.parent)),
+                    line_number=line_num,
+                    line_content=(
+                        lines[line_num - 1].strip() if line_num <= len(lines) else ""
+                    ),
+                )
+
+                key = f"{method} {url}"
+                self.usages[key].append(usage)
+
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
 
@@ -395,6 +429,38 @@ class FlaskRouteAnalyzer:
                     return False
 
         return True
+
+    def _debug_show_sample_routes(self) -> None:
+        """Show sample routes found for debugging"""
+        print("\n📋 Debug: Sample backend routes found:")
+        # Group by method and show a few examples
+        by_method = defaultdict(list)
+        for route in self.routes:
+            by_method[route.method].append(route)
+        
+        for method in sorted(by_method.keys()):
+            routes = by_method[method][:3]  # Show first 3 of each method
+            print(f"   {method}: {len(by_method[method])} routes")
+            for route in routes:
+                print(f"     {route.full_path} ({route.file_path}:{route.line_number})")
+            if len(by_method[method]) > 3:
+                print(f"     ... and {len(by_method[method]) - 3} more")
+
+    def _debug_show_sample_usages(self) -> None:
+        """Show sample frontend usages found for debugging"""
+        print("\n📋 Debug: Sample frontend API calls found:")
+        # Show first few usage keys
+        usage_keys = list(self.usages.keys())[:10]  # Show first 10
+        for key in usage_keys:
+            usages = self.usages[key]
+            print(f"   {key} ({len(usages)} call{'s' if len(usages) != 1 else ''})")
+            for usage in usages[:2]:  # Show first 2 locations
+                print(f"     {usage.file_path}:{usage.line_number}")
+            if len(usages) > 2:
+                print(f"     ... and {len(usages) - 2} more")
+        
+        if len(self.usages) > 10:
+            print(f"   ... and {len(self.usages) - 10} more unique API calls")
 
     def generate_split_reports(self) -> None:
         """Generate two separate markdown reports: routes with usage and routes without usage"""
