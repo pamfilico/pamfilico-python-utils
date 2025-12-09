@@ -194,10 +194,6 @@ def process_file(file_path: Path, dry_run: bool = True) -> tuple[bool, int]:
         # Extract inline imports
         inline_imports, cleaned_content = extract_inline_imports(original_content)
         
-        # ALWAYS print this for debugging
-        print(f"  🐛 EXTRACTED {len(inline_imports)} imports from {file_path}")
-        for i, imp in enumerate(inline_imports[:3]):
-            print(f"       {i+1}. {imp.replace(chr(10), ' | ')}")
         
         if not inline_imports:
             return False, 0
@@ -212,14 +208,6 @@ def process_file(file_path: Path, dry_run: bool = True) -> tuple[bool, int]:
             if len(inline_imports) > 5:
                 print(f"    ... and {len(inline_imports) - 5} more")
         else:
-            # DEBUG: Write debug info to a file
-            with open('/tmp/debug_imports.txt', 'w') as debug_file:
-                debug_file.write(f"Extracting {len(inline_imports)} imports:\n")
-                for i, imp in enumerate(inline_imports):
-                    debug_file.write(f"  {i+1}. {repr(imp)}\n")
-                debug_file.write(f"\nFirst 1000 chars of cleaned content:\n{cleaned_content[:1000]}\n")
-                debug_file.write(f"\nFirst 1000 chars of final content:\n{final_content[:1000]}\n")
-            
             # Write the modified content back
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(final_content)
