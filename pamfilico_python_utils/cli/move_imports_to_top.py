@@ -63,13 +63,13 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
                     # Mark this line to skip
                     skip_lines.add(j)
                     
-                    # Add the continuation line (preserve some indentation for readability)
-                    if next_stripped:  # Don't add empty lines
+                    # Add the continuation line if it's not empty
+                    if next_stripped:
                         import_lines.append(next_stripped)
                     
                     # Check if this line closes the import
                     if ')' in next_stripped:
-                        j += 1  # Include the closing line
+                        j += 1  # Move past the closing line
                         break
                         
                     j += 1
