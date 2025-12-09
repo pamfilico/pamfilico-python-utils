@@ -255,30 +255,38 @@ from pamfilico_python_utils.cli import FlaskRouteAnalyzer, RouteInfo, UsageInfo
 Analyze Flask routes and their frontend usage to identify dead code and track API consumption:
 
 ```bash
-# From your backend directory (uses pyproject.toml config)
-cd backend_carfast
+# From your backend directory (uses pyproject.toml config if available)
+cd your-backend-directory
 poetry run flask_route_usage_report
+
+# Backend routes only (no frontend analysis)
+poetry run flask_route_usage_report
+
+# With frontend analysis
+poetry run flask_route_usage_report --frontends ../your-frontend
 
 # Custom paths (overrides pyproject.toml)
 poetry run flask_route_usage_report \
-  --backend ./my-backend \
-  --api-path app/api/v1 \
-  --frontends ./frontend1 ./frontend2 \
+  --backend ./ \
+  --api-path app \
+  --frontends ../frontend1 ../frontend2 \
   --frontend-src src
 
 # View help
 poetry run flask_route_usage_report --help
 ```
 
-**Configuration in pyproject.toml:**
+**Configuration in your backend's pyproject.toml:**
 
 ```toml
 [tool.flask_route_usage]
 backend = "./"
-api_path = "app/api/v1"
-frontends = ["../frontend_carfast_manager_web", "../frontend_rentfast_landing"]
+api_path = "app"
+frontends = ["../your-frontend1", "../your-frontend2"]
 frontend_src = "src"
 ```
+
+You can add this configuration to your backend project's pyproject.toml to avoid having to specify paths every time.
 
 **Output:**
 - `flask_routes_with_usage.md` - Routes with frontend usage (106 routes, 148 calls)
