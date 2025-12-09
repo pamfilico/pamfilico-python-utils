@@ -25,6 +25,7 @@ except ImportError:
 def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
     """
     Extract all inline imports from file content and return them along with cleaned content.
+    Handles both single-line and multi-line imports properly.
     
     Args:
         file_content: The content of the Python file
@@ -36,23 +37,58 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
     imports = []
     cleaned_lines = []
     
-    # Track indentation to identify imports inside functions/classes
-    for i, line in enumerate(lines):
-        # Check if line is an import statement with indentation (inline import)
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         stripped = line.strip()
+        
+        # Check if line is an import statement with indentation (inline import)
         if (line.startswith('    ') or line.startswith('\t')) and (
             stripped.startswith('import ') or stripped.startswith('from ')
         ):
-            # This is an inline import - extract it
-            # Remove leading whitespace to normalize
-            import_statement = stripped
-            if import_statement not in imports:
-                imports.append(import_statement)
-            # Skip this line (remove it from content)
-            continue
+            # This is an inline import - extract it (may be multi-line)
+            import_lines = []
+            current_line = stripped
+            import_lines.append(current_line)
+            lines_consumed = 1  # Track how many lines we're consuming
+            
+            # Check if this is a multi-line import (contains opening parenthesis)
+            if '(' in current_line and ')' not in current_line:
+                # Multi-line import - continue reading until closing parenthesis
+                j = i + 1
+                while j < len(lines):
+                    next_line = lines[j]
+                    next_stripped = next_line.strip()
+                    
+                    # Check if this line is indented (part of the import)
+                    if next_line.startswith('    ') or next_line.startswith('\t') or not next_stripped:
+                        # Add the continuation line (preserve indentation for readability)
+                        import_lines.append(next_stripped)
+                        lines_consumed += 1
+                        
+                        # Check if this line closes the import
+                        if ')' in next_stripped:
+                            break
+                    else:
+                        # Non-indented line - we've gone too far, break without consuming
+                        break
+                        
+                    j += 1
+                
+                # Update i to skip all the lines we consumed
+                i = i + lines_consumed
+            else:
+                # Single-line import
+                i += 1
+            
+            # Join the import lines and add to imports list
+            complete_import = '\n'.join(import_lines)
+            if complete_import not in imports:
+                imports.append(complete_import)
         else:
             # Keep this line
             cleaned_lines.append(line)
+            i += 1
     
     return imports, '\n'.join(cleaned_lines)
 
