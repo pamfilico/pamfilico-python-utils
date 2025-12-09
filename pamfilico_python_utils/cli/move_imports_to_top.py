@@ -22,6 +22,36 @@ except ImportError:
         tomli = None
 
 
+def _is_continuation_of_top_level_import(lines: List[str], current_idx: int) -> bool:
+    """
+    Check if the current indented line is a continuation of a top-level multi-line import.
+    
+    This prevents treating continuation lines of top-level imports as inline imports.
+    """
+    # Look backwards to find if there's an open multi-line import at top level
+    for i in range(current_idx - 1, -1, -1):
+        line = lines[i]
+        stripped = line.strip()
+        
+        # If we hit a non-empty, non-indented line
+        if stripped and not line.startswith(' ') and not line.startswith('\t'):
+            # Check if it's an import with opening parenthesis
+            if (stripped.startswith('from ') or stripped.startswith('import ')) and '(' in stripped and ')' not in stripped:
+                # This is a top-level multi-line import that's still open
+                return True
+            else:
+                # Found a non-import top-level line, so we're not in a multi-line import
+                return False
+        
+        # If we hit a line with closing parenthesis, the import is closed
+        if ')' in stripped:
+            return False
+            
+        # Continue looking backwards
+    
+    return False
+
+
 def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
     """
     Extract all inline imports from file content and return them along with cleaned content.
@@ -43,9 +73,10 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
         stripped = line.strip()
         
         # Check if line is an import statement with indentation (inline import)
+        # BUT NOT part of a top-level multi-line import
         if (line.startswith('    ') or line.startswith('\t')) and (
             stripped.startswith('import ') or stripped.startswith('from ')
-        ):
+        ) and not _is_continuation_of_top_level_import(lines, i):
             # This is an inline import - extract it (may be multi-line)
             import_lines = []
             current_line = stripped
