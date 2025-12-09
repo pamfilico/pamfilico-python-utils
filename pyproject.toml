@@ -16,6 +16,13 @@ marshmallow = ">=3.0.0"
 werkzeug = ">=2.0.0"
 boto3 = ">=1.36.0"
 tomli = ">=2.0.0"
+# Python code quality analysis tools
+radon = ">=6.0.0"
+xenon = ">=0.9.0"
+cohesion = ">=1.0.0"
+bandit = ">=1.7.0"
+pylint = ">=3.0.0"
+vulture = ">=2.0.0"
 
 [tool.poetry.scripts]
 flask_route_usage_report = "pamfilico_python_utils.cli.flask_route_usage_report:main"
@@ -23,6 +30,7 @@ add_usage_comments = "pamfilico_python_utils.cli.add_usage_comments:main"
 remove_route_usage_comments = "pamfilico_python_utils.cli.remove_route_usage_comments:main"
 update_route_usage_comments = "pamfilico_python_utils.cli.update_route_usage_comments:main"
 move_imports_to_top = "pamfilico_python_utils.cli.move_imports_to_top:main"
+python_quality_audit = "pamfilico_python_utils.cli.python_quality_audit:main"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.9.1"

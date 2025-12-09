@@ -77,11 +77,12 @@ poetry update pamfilico-python-utils
   - Simple upload and fetch operations
   - Public URL generation
 
-- **CLI Tools**: Command-line utilities for Flask development and code refactoring
+- **CLI Tools**: Command-line utilities for Flask development, code refactoring, and quality analysis
   - `flask_route_usage_report`: Analyze Flask routes and find their frontend usage
   - `add_usage_comments`: Add usage comment blocks above Flask route definitions
   - `remove_route_usage_comments`: Remove all usage comment blocks from Flask routes
   - `move_imports_to_top`: Move inline imports from inside functions to the top of Python files
+  - `python_quality_audit`: Comprehensive Python code quality analysis with multiple tools
   - Generates comprehensive markdown reports
   - Detects unused routes (dead code) 
   - Supports pyproject.toml configuration
@@ -249,6 +250,7 @@ from pamfilico_python_utils.storage import DigitalOceanSpacesClient
 # CLI utilities (for programmatic use)
 from pamfilico_python_utils.cli import FlaskRouteAnalyzer, RouteInfo, UsageInfo
 from pamfilico_python_utils.cli.move_imports_to_top import process_file, extract_inline_imports
+from pamfilico_python_utils.cli.python_quality_audit import generate_report, check_tools
 ```
 
 ### CLI Tools
@@ -474,6 +476,81 @@ def list_posts():
 - Preparing code for linting tools that require imports at the top
 - Standardizing import patterns across a codebase
 
+#### 5. Python Quality Audit
+
+Runs comprehensive Python code quality analysis using multiple industry-standard tools and generates detailed markdown reports. Reports are saved in `audit/` directories next to the analyzed files.
+
+```bash
+# Analyze single file - saves to audit/filename.md
+poetry run python_quality_audit src/app.py
+
+# Analyze with strict complexity threshold
+poetry run python_quality_audit src/app.py --xenon-threshold A
+
+# Analyze multiple files with pattern
+poetry run python_quality_audit --pattern "src/**/*.py"
+
+# Preview what files would be analyzed
+poetry run python_quality_audit --pattern "src/**/*.py" --dry-run
+
+# View help
+poetry run python_quality_audit --help
+```
+
+**Configuration in pyproject.toml:**
+
+```toml
+[tool.python_quality_audit]
+xenon_threshold = "A"
+pattern = "src/**/*.py"
+```
+
+**Analysis Tools Included:**
+
+1. **Radon** - Cyclomatic complexity, Maintainability Index, Halstead metrics
+2. **Xenon** - Complexity threshold checking (fails if code exceeds limits)
+3. **Cohesion** - LCOM (Lack of Cohesion of Methods) for class analysis
+4. **Bandit** - Security vulnerability detection
+5. **Pylint** - Code quality, style, and error analysis
+6. **Vulture** - Dead code detection (unused functions, variables, imports)
+
+**Report Structure:**
+- Cyclomatic Complexity (McCabe) - Code path complexity grading A-F
+- Complexity Thresholds - Pass/fail based on configurable limits
+- Maintainability Index - Overall maintainability scoring
+- Halstead Metrics - Software science metrics for code understanding
+- Class Cohesion - How well-structured your classes are
+- Security Issues - Potential vulnerabilities and bad practices  
+- Code Quality - Style issues, errors, and refactoring suggestions
+- Dead Code - Unused code that can be safely removed
+
+**Features:**
+- Auto-creates `audit/` directories next to analyzed files
+- Supports single file or bulk analysis with glob patterns
+- Configurable complexity thresholds and tool options
+- Comprehensive markdown reports with academic references
+- Dry-run mode to preview analysis targets
+- Progress reporting for multiple file analysis
+- Missing tool detection with installation guidance
+
+**Example Report Location:**
+```
+src/
+├── app.py
+├── models.py
+└── audit/
+    ├── app.md      # Quality report for app.py
+    └── models.md   # Quality report for models.py
+```
+
+**Use Cases:**
+- Pre-commit quality checks and code review preparation
+- Technical debt assessment and refactoring planning
+- Security audit and vulnerability assessment
+- Code complexity monitoring and maintainability tracking
+- Dead code cleanup and codebase optimization
+- Academic research requiring quantitative code metrics
+
 #### Typical Workflow
 
 ```bash
@@ -482,18 +559,23 @@ cd your-backend-directory
 poetry run move_imports_to_top --pattern "app/api/v1/*.py" --dry-run
 poetry run move_imports_to_top --pattern "app/api/v1/*.py"
 
-# 2. Analyze routes and generate reports
+# 2. Run quality audit on your codebase
+poetry run python_quality_audit --pattern "src/**/*.py" --dry-run
+poetry run python_quality_audit --pattern "src/**/*.py"
+
+# 3. Analyze routes and generate reports
 poetry run flask_route_usage_report
 
-# 3. Review the generated markdown files
+# 4. Review the generated files
+# - audit/*.md (quality reports for each file)
 # - flask_routes_with_usage.md (routes being used)
 # - flask_routes_without_usage.md (potential dead code)
 
-# 4. Add comment blocks to route files (dry-run first)
+# 5. Add comment blocks to route files (dry-run first)
 poetry run add_usage_comments --dry-run
 poetry run add_usage_comments
 
-# 5. If you need to regenerate or clean up
+# 6. If you need to regenerate or clean up
 poetry run remove_route_usage_comments
 poetry run flask_route_usage_report
 poetry run add_usage_comments
