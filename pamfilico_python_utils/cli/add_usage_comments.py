@@ -255,10 +255,23 @@ def load_config_from_pyproject() -> Optional[Dict[str, Any]]:
             try:
                 with open(pyproject_path, "rb") as f:
                     data = tomli.load(f)
+                    # First try specific config for this tool
                     config = data.get("tool", {}).get("add_usage_comments", {})
                     if config:
                         print(f"📋 Loaded config from: {pyproject_path}")
                         return config
+                    
+                    # Fall back to general flask_route_usage config
+                    flask_config = data.get("tool", {}).get("flask_route_usage", {})
+                    if flask_config:
+                        # Map flask_route_usage config to add_usage_comments format
+                        mapped_config = {
+                            "backend_path": flask_config.get("backend", "./"),
+                            "with_usage_report": "flask_routes_with_usage.md",
+                            "without_usage_report": "flask_routes_without_usage.md"
+                        }
+                        print(f"📋 Loaded config from: {pyproject_path} (flask_route_usage)")
+                        return mapped_config
             except Exception as e:
                 print(f"Warning: Could not load {pyproject_path}: {e}")
                 continue
