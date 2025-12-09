@@ -77,13 +77,15 @@ poetry update pamfilico-python-utils
   - Simple upload and fetch operations
   - Public URL generation
 
-- **CLI Tools**: Command-line utilities for Flask development
+- **CLI Tools**: Command-line utilities for Flask development and code refactoring
   - `flask_route_usage_report`: Analyze Flask routes and find their frontend usage
   - `add_usage_comments`: Add usage comment blocks above Flask route definitions
   - `remove_route_usage_comments`: Remove all usage comment blocks from Flask routes
+  - `move_imports_to_top`: Move inline imports from inside functions to the top of Python files
   - Generates comprehensive markdown reports
-  - Detects unused routes (dead code)
+  - Detects unused routes (dead code) 
   - Supports pyproject.toml configuration
+  - Handles axios instance calls and complex API patterns
 
 ## Usage
 
@@ -246,6 +248,7 @@ from pamfilico_python_utils.storage import DigitalOceanSpacesClient
 
 # CLI utilities (for programmatic use)
 from pamfilico_python_utils.cli import FlaskRouteAnalyzer, RouteInfo, UsageInfo
+from pamfilico_python_utils.cli.move_imports_to_top import process_file, extract_inline_imports
 ```
 
 ### CLI Tools
@@ -295,10 +298,13 @@ You can add this configuration to your backend project's pyproject.toml to avoid
 **Features:**
 - Extracts Flask routes from backend using regex parsing
 - Scans frontend TypeScript/JavaScript files for axios/fetch API calls
+- Detects both direct axios calls (`axios.get()`) and instance calls (`apiClient.get()`)
+- Handles baseURL prefixes and API client configurations
 - Fuzzy matching for dynamic routes (`/api/user/<user_id>`)
 - Handles multi-line API calls and template variables
 - Groups by HTTP method (GET, POST, PUT, DELETE, PATCH)
 - Shows exact file locations with line numbers
+- Supports verbose debugging output for troubleshooting
 
 #### 2. Add Usage Comments
 
@@ -375,22 +381,117 @@ backend_path = "./"
 - Safe operation (only removes known comment markers)
 - Shows summary of files processed and blocks removed
 
+#### 4. Move Imports to Top
+
+Extracts all inline imports from inside functions and moves them to the top of Python files. This is particularly useful for Flask route files that have imports scattered throughout functions:
+
+```bash
+# Dry run (preview changes) on current directory
+poetry run move_imports_to_top --dry-run
+
+# Process specific directory with pattern
+poetry run move_imports_to_top --backend-path ./backend --pattern "app/api/v1/*.py" --dry-run
+
+# Live mode (actually modify files)
+poetry run move_imports_to_top --pattern "app/api/v1/*.py"
+
+# Process all Python files in backend
+poetry run move_imports_to_top --backend-path ./backend
+
+# View help
+poetry run move_imports_to_top --help
+```
+
+**Configuration in pyproject.toml:**
+
+```toml
+[tool.move_imports_to_top]
+backend_path = "./backend"
+```
+
+**Example transformation:**
+
+Before:
+```python
+@app.route('/api/users', methods=['GET'])
+def list_users():
+    from app.services.user_service import UserService
+    from app.database.models import User
+    import json
+    
+    users = UserService.get_all()
+    return json.dumps(users)
+
+@app.route('/api/posts', methods=['GET']) 
+def list_posts():
+    from app.services.post_service import PostService
+    from datetime import datetime
+    
+    posts = PostService.get_recent()
+    return posts
+```
+
+After:
+```python
+from app.services.user_service import UserService
+from app.database.models import User
+import json
+from app.services.post_service import PostService
+from datetime import datetime
+
+@app.route('/api/users', methods=['GET'])
+def list_users():
+    users = UserService.get_all()
+    return json.dumps(users)
+
+@app.route('/api/posts', methods=['GET']) 
+def list_posts():
+    posts = PostService.get_recent()
+    return posts
+```
+
+**Features:**
+- Detects imports with indentation (inside functions/classes)
+- Preserves existing top-level imports and adds new ones after them
+- Handles docstrings and comments correctly
+- Supports glob patterns for file selection (e.g., `"app/api/v1/*.py"`)
+- Removes duplicate imports automatically
+- Dry-run mode for safe preview
+- Shows detailed progress and debugging output
+- Configurable backend directory path
+- Skips files with no inline imports
+
+**Command Line Options:**
+- `--dry-run`: Preview changes without modifying files
+- `--backend-path <path>`: Path to backend directory (default: `./`)
+- `--pattern <pattern>`: File pattern to match (default: `**/*.py`)
+
+**Use Cases:**
+- Cleaning up Flask route files with scattered imports
+- Refactoring legacy code with poor import organization
+- Preparing code for linting tools that require imports at the top
+- Standardizing import patterns across a codebase
+
 #### Typical Workflow
 
 ```bash
-# 1. Analyze routes and generate reports
-cd backend_carfast
+# 1. Clean up imports in your route files (optional but recommended first)
+cd your-backend-directory
+poetry run move_imports_to_top --pattern "app/api/v1/*.py" --dry-run
+poetry run move_imports_to_top --pattern "app/api/v1/*.py"
+
+# 2. Analyze routes and generate reports
 poetry run flask_route_usage_report
 
-# 2. Review the generated markdown files
+# 3. Review the generated markdown files
 # - flask_routes_with_usage.md (routes being used)
 # - flask_routes_without_usage.md (potential dead code)
 
-# 3. Add comment blocks to route files (dry-run first)
+# 4. Add comment blocks to route files (dry-run first)
 poetry run add_usage_comments --dry-run
 poetry run add_usage_comments
 
-# 4. If you need to regenerate or clean up
+# 5. If you need to regenerate or clean up
 poetry run remove_route_usage_comments
 poetry run flask_route_usage_report
 poetry run add_usage_comments
