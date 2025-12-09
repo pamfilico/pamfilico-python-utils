@@ -22,6 +22,7 @@ Usage:
 import subprocess
 import sys
 import os
+import re
 from pathlib import Path
 from datetime import datetime
 import argparse
@@ -136,8 +137,33 @@ def analyze_pylint(target: str) -> str:
     return stdout if stdout.strip() else "No issues found.\n"
 
 
+def is_flask_route_function(file_path: str, function_name: str, line_number: int) -> bool:
+    """Check if a function is a Flask route by examining decorators above it."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Look backwards from the function line for decorators
+        start_idx = max(0, line_number - 10)  # Check up to 10 lines before
+        end_idx = min(len(lines), line_number + 2)  # And a bit after
+        
+        function_block = ''.join(lines[start_idx:end_idx])
+        
+        # Flask route decorators patterns
+        flask_decorators = [
+            '@api.route', '@app.route', '@blueprint.route', '@bp.route',
+            '@api_bp.route', '@main.route', '@views.route'
+        ]
+        
+        # Check if any Flask decorator appears before the function
+        return any(decorator in function_block for decorator in flask_decorators)
+        
+    except Exception:
+        return False
+
+
 def analyze_vulture(target: str) -> str:
-    """Dead code detection."""
+    """Dead code detection with Flask route awareness."""
     stdout, stderr, rc = run_command(["vulture", target])
     if rc == -1:
         return f"Error: {stderr}\n"
@@ -145,7 +171,53 @@ def analyze_vulture(target: str) -> str:
     if not stdout.strip():
         return "No dead code detected.\n"
     
-    return stdout
+    # Filter out Flask route functions from vulture output
+    lines = stdout.strip().split('\n')
+    filtered_lines = []
+    flask_routes_ignored = []
+    
+    for line in lines:
+        if 'unused function' in line:
+            # Parse vulture output: "path:line: unused function 'name' (confidence%)"
+            try:
+                parts = line.split(':')
+                if len(parts) >= 3:
+                    file_path = parts[0]
+                    line_number = int(parts[1]) - 1  # Convert to 0-based index
+                    
+                    # Extract function name from the message
+                    match = re.search(r"unused function '([^']+)'", line)
+                    if match:
+                        function_name = match.group(1)
+                        
+                        # Check if this is a Flask route function
+                        if is_flask_route_function(file_path, function_name, line_number):
+                            flask_routes_ignored.append(function_name)
+                            continue  # Skip this line (don't add to filtered_lines)
+            except (ValueError, IndexError):
+                pass  # If parsing fails, keep the original line
+        
+        # Add non-Flask route lines to output
+        filtered_lines.append(line)
+    
+    # Build the final output
+    result = []
+    if filtered_lines:
+        result.extend(filtered_lines)
+        result.append("")  # Empty line separator
+    
+    if flask_routes_ignored:
+        result.append("# Flask routes ignored (not actually unused):")
+        for route in flask_routes_ignored:
+            result.append(f"# - {route}()")
+        result.append("")
+    
+    if not filtered_lines and not flask_routes_ignored:
+        return "No dead code detected.\n"
+    elif not filtered_lines:
+        return "No dead code detected (Flask routes ignored).\n"
+    
+    return '\n'.join(result)
 
 
 def generate_report(target: str, xenon_threshold: str = "B") -> str:
@@ -223,6 +295,7 @@ def generate_report(target: str, xenon_threshold: str = "B") -> str:
     # Dead Code
     report.append(section("Dead Code (Vulture)"))
     report.append("Detects unused functions, variables, classes, and imports.")
+    report.append("Note: Flask route functions are automatically excluded from unused function reports.")
     report.append("")
     report.append("```")
     report.append(analyze_vulture(str(target_path)).rstrip())
