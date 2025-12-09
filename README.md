@@ -383,6 +383,8 @@ backend_path = "./"
 
 #### 4. Move Imports to Top
 
+# This tool was created because of Claude's bullshit habit of putting imports inside functions
+
 Extracts all inline imports from inside functions and moves them to the top of Python files. This is particularly useful for Flask route files that have imports scattered throughout functions:
 
 ```bash
