@@ -22,6 +22,7 @@ flask_route_usage_report = "pamfilico_python_utils.cli.flask_route_usage_report:
 add_usage_comments = "pamfilico_python_utils.cli.add_usage_comments:main"
 remove_route_usage_comments = "pamfilico_python_utils.cli.remove_route_usage_comments:main"
 update_route_usage_comments = "pamfilico_python_utils.cli.update_route_usage_comments:main"
+move_imports_to_top = "pamfilico_python_utils.cli.move_imports_to_top:main"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.9.1"
