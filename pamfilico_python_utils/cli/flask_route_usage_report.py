@@ -56,10 +56,10 @@ def parse_arguments():
     # Load config from pyproject.toml
     config = load_config_from_pyproject()
 
-    # Set defaults from config or hardcoded defaults
-    default_backend = config.get("backend", "backend_carfast") if config else "backend_carfast"
-    default_api_path = config.get("api_path", "app/api/v1") if config else "app/api/v1"
-    default_frontends = config.get("frontends", ["frontend_carfast_manager_web", "frontend_rentfast_landing"]) if config else ["frontend_carfast_manager_web", "frontend_rentfast_landing"]
+    # Set defaults from config or sensible defaults
+    default_backend = config.get("backend", "./") if config else "./"
+    default_api_path = config.get("api_path", "app") if config else "app"
+    default_frontends = config.get("frontends", []) if config else []
     default_frontend_src = config.get("frontend_src", "src") if config else "src"
 
     parser = argparse.ArgumentParser(
@@ -67,17 +67,18 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Use defaults from pyproject.toml (if available) or hardcoded defaults
+  # Analyze backend routes only (no frontend specified)
   poetry run flask_route_usage_report
 
-  # Custom backend API path (overrides pyproject.toml)
+  # With frontend analysis
+  poetry run flask_route_usage_report --frontends ../my-frontend
+
+  # Custom backend API path
   poetry run flask_route_usage_report --api-path app/api/v2
 
-  # Custom frontend source paths (overrides pyproject.toml)
-  poetry run flask_route_usage_report --frontend-src app/src
-
-  # Custom backend and multiple frontends (overrides pyproject.toml)
-  poetry run flask_route_usage_report --backend ./my-backend \\
+  # Multiple frontends with custom backend
+  poetry run flask_route_usage_report \\
+    --backend ./my-backend \\
     --frontends ./frontend1 ./frontend2
 
   # Everything custom
@@ -92,8 +93,8 @@ Configuration:
 
   [tool.flask_route_usage]
   backend = "./"
-  api_path = "app/api/v1"
-  frontends = ["../frontend_carfast_manager_web", "../frontend_rentfast_landing"]
+  api_path = "app"
+  frontends = ["../my-frontend"]
   frontend_src = "src"
         """,
     )
@@ -114,9 +115,9 @@ Configuration:
 
     parser.add_argument(
         "--frontends",
-        nargs="+",
+        nargs="*",
         default=default_frontends,
-        help=f"Frontend root directories (default: {' '.join(default_frontends)})",
+        help=f"Frontend root directories (default: none - backend analysis only)",
     )
 
     parser.add_argument(
@@ -154,6 +155,12 @@ def main():
     if not backend_root.exists():
         print(f"❌ Error: Backend path not found: {backend_root}")
         sys.exit(1)
+    
+    # Check if frontends were provided
+    if not frontend_roots:
+        print("⚠️  Warning: No frontend directories specified. Only backend route extraction will be performed.")
+        print("   Use --frontends to specify frontend directories for usage analysis.")
+        print()
 
     # Create analyzer with custom paths
     analyzer = FlaskRouteAnalyzer(
