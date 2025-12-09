@@ -22,40 +22,11 @@ except ImportError:
         tomli = None
 
 
-def _is_continuation_of_top_level_import(lines: List[str], current_idx: int) -> bool:
-    """
-    Check if the current indented line is a continuation of a top-level multi-line import.
-    
-    This prevents treating continuation lines of top-level imports as inline imports.
-    """
-    # Look backwards to find if there's an open multi-line import at top level
-    for i in range(current_idx - 1, -1, -1):
-        line = lines[i]
-        stripped = line.strip()
-        
-        # If we hit a non-empty, non-indented line
-        if stripped and not line.startswith(' ') and not line.startswith('\t'):
-            # Check if it's an import with opening parenthesis
-            if (stripped.startswith('from ') or stripped.startswith('import ')) and '(' in stripped and ')' not in stripped:
-                # This is a top-level multi-line import that's still open
-                return True
-            else:
-                # Found a non-import top-level line, so we're not in a multi-line import
-                return False
-        
-        # If we hit a line with closing parenthesis, the import is closed
-        if ')' in stripped:
-            return False
-            
-        # Continue looking backwards
-    
-    return False
-
 
 def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
     """
     Extract all inline imports from file content and return them along with cleaned content.
-    Handles both single-line and multi-line imports properly.
+    Only extracts imports that are actually indented AND start with import/from keywords.
     
     Args:
         file_content: The content of the Python file
@@ -65,68 +36,66 @@ def extract_inline_imports(file_content: str) -> tuple[List[str], str]:
     """
     lines = file_content.split('\n')
     imports = []
-    skip_lines = set()  # Track which line numbers to skip in cleaned output
+    lines_to_remove = []  # Track exact line indices to remove
     
     i = 0
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
         
-        # Check if line is an import statement with indentation (inline import)
-        # BUT NOT part of a top-level multi-line import
-        if (line.startswith('    ') or line.startswith('\t')) and (
-            stripped.startswith('import ') or stripped.startswith('from ')
-        ) and not _is_continuation_of_top_level_import(lines, i):
-            # This is an inline import - extract it (may be multi-line)
-            import_lines = []
-            current_line = stripped
-            import_lines.append(current_line)
-            skip_lines.add(i)  # Mark this line to skip
+        # Only detect lines that:
+        # 1. Are indented (inside functions/classes)
+        # 2. Actually start with import/from keywords
+        # 3. Are not just identifiers in a multi-line import
+        if ((line.startswith('    ') or line.startswith('\t')) and 
+            stripped and
+            (stripped.startswith('import ') or stripped.startswith('from '))):
             
-            # Check if this is a multi-line import (contains opening parenthesis)
-            if '(' in current_line and ')' not in current_line:
-                # Multi-line import - continue reading until closing parenthesis
+            # This is a potential inline import
+            import_start_idx = i
+            import_lines = [stripped]
+            lines_to_remove.append(i)
+            
+            # Check if this is a multi-line import
+            if '(' in stripped and ')' not in stripped:
+                # Multi-line import - read continuation lines
                 j = i + 1
-                while j < len(lines):
+                while j < len(lines) and j - i < 20:  # Safety limit
                     next_line = lines[j]
                     next_stripped = next_line.strip()
                     
-                    # Mark this line to skip
-                    skip_lines.add(j)
+                    if not next_stripped:
+                        # Empty line - skip but don't include in import
+                        lines_to_remove.append(j)
+                        j += 1
+                        continue
                     
-                    # Add the continuation line if it's not empty
-                    if next_stripped:
-                        import_lines.append(next_stripped)
+                    # Add this line to the import and mark for removal
+                    import_lines.append(next_stripped)
+                    lines_to_remove.append(j)
                     
                     # Check if this line closes the import
                     if ')' in next_stripped:
-                        j += 1  # Move past the closing line
+                        j += 1
                         break
                         
                     j += 1
-                    
-                    # Safety check - don't go beyond reasonable limits
-                    if j - i > 20:  # Arbitrary limit to prevent infinite loops
-                        break
                 
-                # Update i to continue after the multi-line import
-                i = j
+                i = j  # Continue from after the multi-line import
             else:
-                # Single-line import
-                i += 1
+                i += 1  # Single-line import
             
-            # Join the import lines and add to imports list
+            # Add the complete import
             complete_import = '\n'.join(import_lines)
             if complete_import not in imports:
                 imports.append(complete_import)
         else:
-            # Regular line - continue
             i += 1
     
-    # Build cleaned content by skipping marked lines
+    # Build cleaned content by removing the marked lines
     cleaned_lines = []
     for idx, line in enumerate(lines):
-        if idx not in skip_lines:
+        if idx not in lines_to_remove:
             cleaned_lines.append(line)
     
     return imports, '\n'.join(cleaned_lines)
@@ -213,6 +182,11 @@ def process_file(file_path: Path, dry_run: bool = True) -> tuple[bool, int]:
         # Extract inline imports
         inline_imports, cleaned_content = extract_inline_imports(original_content)
         
+        # ALWAYS print this for debugging
+        print(f"  🐛 EXTRACTED {len(inline_imports)} imports from {file_path}")
+        for i, imp in enumerate(inline_imports[:3]):
+            print(f"       {i+1}. {imp.replace(chr(10), ' | ')}")
+        
         if not inline_imports:
             return False, 0
         
@@ -226,6 +200,14 @@ def process_file(file_path: Path, dry_run: bool = True) -> tuple[bool, int]:
             if len(inline_imports) > 5:
                 print(f"    ... and {len(inline_imports) - 5} more")
         else:
+            # DEBUG: Write debug info to a file
+            with open('/tmp/debug_imports.txt', 'w') as debug_file:
+                debug_file.write(f"Extracting {len(inline_imports)} imports:\n")
+                for i, imp in enumerate(inline_imports):
+                    debug_file.write(f"  {i+1}. {repr(imp)}\n")
+                debug_file.write(f"\nFirst 1000 chars of cleaned content:\n{cleaned_content[:1000]}\n")
+                debug_file.write(f"\nFirst 1000 chars of final content:\n{final_content[:1000]}\n")
+            
             # Write the modified content back
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(final_content)
