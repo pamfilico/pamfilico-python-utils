@@ -131,7 +131,19 @@ def insert_imports_at_top(file_content: str, new_imports: List[str]) -> str:
         # Check if this is an import line (at top level - no indentation)
         if (not line.startswith(' ') and not line.startswith('\t') and 
             (stripped.startswith('import ') or stripped.startswith('from '))):
-            last_import_line = i
+            
+            # Handle multi-line imports - find the end
+            if '(' in stripped and ')' not in stripped:
+                # Multi-line import - scan forward to find the closing parenthesis
+                j = i + 1
+                while j < len(lines):
+                    if ')' in lines[j]:
+                        last_import_line = j  # End of the multi-line import
+                        break
+                    j += 1
+            else:
+                # Single-line import
+                last_import_line = i
             continue
             
         # Check for docstrings (triple quotes)
