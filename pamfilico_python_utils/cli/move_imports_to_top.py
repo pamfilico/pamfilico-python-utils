@@ -263,16 +263,44 @@ def main():
         sys.exit(1)
 
     print(f"🔍 Scanning for Python files in: {backend_base}")
+    print(f"🔍 Using pattern: {args.pattern}")
+    print(f"🔍 Full search path: {backend_base / args.pattern}")
     if args.dry_run:
         print("🔍 DRY RUN MODE - No files will be modified\n")
     else:
         print("⚠️  LIVE MODE - Files will be modified\n")
 
-    # Find all Python files
-    python_files = list(backend_base.glob(args.pattern))
+    # Find all Python files using the pattern relative to backend_base
+    try:
+        python_files = list(backend_base.glob(args.pattern))
+        print(f"🔍 Found {len(python_files)} files matching pattern")
+        
+        # Debug: show first few matches
+        for i, f in enumerate(python_files[:3]):
+            print(f"  🎯 Match {i+1}: {f.relative_to(cwd) if f.is_relative_to(cwd) else f}")
+        if len(python_files) > 3:
+            print(f"  ... and {len(python_files) - 3} more")
+        
+    except Exception as e:
+        print(f"❌ Error applying glob pattern: {e}")
+        python_files = []
     
     if not python_files:
-        print(f"No Python files found matching pattern: {args.pattern}")
+        print(f"❌ No Python files found matching pattern: {args.pattern}")
+        print(f"   Search base: {backend_base}")
+        print(f"   Full pattern: {backend_base / args.pattern}")
+        
+        # Try to help debug
+        print(f"\n🔍 Debug: Checking if pattern path exists...")
+        pattern_dir = backend_base / Path(args.pattern).parent
+        if pattern_dir.exists():
+            print(f"   ✅ Directory exists: {pattern_dir}")
+            files_in_dir = list(pattern_dir.glob("*.py"))
+            print(f"   📁 Python files in directory: {len(files_in_dir)}")
+            for f in files_in_dir[:3]:
+                print(f"      - {f.name}")
+        else:
+            print(f"   ❌ Directory does not exist: {pattern_dir}")
         return
 
     total_files_modified = 0
