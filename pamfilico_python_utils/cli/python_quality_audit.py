@@ -220,7 +220,7 @@ def analyze_vulture(target: str) -> str:
     return '\n'.join(result)
 
 
-def generate_report(target: str, xenon_threshold: str = "B") -> str:
+def generate_report(target: str, complexity_threshold: str = "C") -> str:
     """Generate the full markdown report."""
     target_path = Path(target).resolve()
     
@@ -243,10 +243,10 @@ def generate_report(target: str, xenon_threshold: str = "B") -> str:
     
     # Xenon Threshold Check
     report.append(section("Complexity Threshold Check (Xenon)"))
-    report.append(f"Threshold set to: **{xenon_threshold}**")
+    report.append(f"Threshold set to: **{complexity_threshold}** (fails if any function exceeds this grade)")
     report.append("")
     report.append("```")
-    report.append(analyze_xenon(str(target_path), xenon_threshold).rstrip())
+    report.append(analyze_xenon(str(target_path), complexity_threshold).rstrip())
     report.append("```")
     
     # Maintainability Index
@@ -372,8 +372,8 @@ def parse_arguments():
     # Load config from pyproject.toml
     config = load_config_from_pyproject()
 
-    # Set defaults from config or sensible defaults
-    default_threshold = config.get("xenon_threshold", "B") if config else "B"
+    # Set defaults from config or sensible defaults (C is more practical default)
+    default_threshold = config.get("complexity", "C") if config else "C"
     default_pattern = config.get("pattern", "**/*.py") if config else "**/*.py"
 
     parser = argparse.ArgumentParser(
@@ -384,8 +384,8 @@ Examples:
   # Analyze single file
   poetry run python_quality_audit src/app.py
   
-  # Analyze with strict threshold
-  poetry run python_quality_audit src/app.py --xenon-threshold A
+  # Analyze with strict threshold  
+  poetry run python_quality_audit src/app.py --complexity A
   
   # Analyze multiple files with pattern
   poetry run python_quality_audit --pattern "src/**/*.py"
@@ -395,7 +395,7 @@ Examples:
 
 Configuration in pyproject.toml:
   [tool.python_quality_audit]
-  xenon_threshold = "A"
+  complexity = "A"
   pattern = "src/**/*.py"
         """,
     )
@@ -414,12 +414,12 @@ Configuration in pyproject.toml:
     )
     
     parser.add_argument(
-        '--xenon-threshold',
-        '-x',
+        '--complexity',
+        '-c',
         type=str,
         default=default_threshold,
         choices=["A", "B", "C", "D", "E", "F"],
-        help=f'Xenon complexity threshold (default: {default_threshold})'
+        help=f'Complexity threshold: A=strict(1-5), B=good(6-10), C=fair(11-20), D=poor(21-30), E=bad(31-40), F=worst(40+) (default: {default_threshold})'
     )
     
     parser.add_argument(
@@ -501,7 +501,7 @@ def main():
             print(f"  ⚠️  Some tools unavailable, report will be incomplete")
         
         # Generate report
-        report = generate_report(str(file_path), args.xenon_threshold)
+        report = generate_report(str(file_path), args.complexity)
         
         # Save report
         report_path = save_audit_report(file_path, report)

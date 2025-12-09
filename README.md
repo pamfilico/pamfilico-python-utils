@@ -485,7 +485,7 @@ Runs comprehensive Python code quality analysis using multiple industry-standard
 poetry run python_quality_audit src/app.py
 
 # Analyze with strict complexity threshold
-poetry run python_quality_audit src/app.py --xenon-threshold A
+poetry run python_quality_audit src/app.py --complexity A
 
 # Analyze multiple files with pattern
 poetry run python_quality_audit --pattern "src/**/*.py"
@@ -501,7 +501,7 @@ poetry run python_quality_audit --help
 
 ```toml
 [tool.python_quality_audit]
-xenon_threshold = "A"
+complexity = "A"  # A=strict, B=good, C=fair (default), D=poor, E=bad, F=worst
 pattern = "src/**/*.py"
 ```
 
@@ -559,9 +559,12 @@ cd your-backend-directory
 poetry run move_imports_to_top --pattern "app/api/v1/*.py" --dry-run
 poetry run move_imports_to_top --pattern "app/api/v1/*.py"
 
-# 2. Run quality audit on your codebase
+# 2. Run quality audit on your codebase (starts with fair threshold C)
 poetry run python_quality_audit --pattern "src/**/*.py" --dry-run
 poetry run python_quality_audit --pattern "src/**/*.py"
+
+# 2a. For stricter analysis, use --complexity A or B
+poetry run python_quality_audit --pattern "src/**/*.py" --complexity B
 
 # 3. Analyze routes and generate reports
 poetry run flask_route_usage_report
