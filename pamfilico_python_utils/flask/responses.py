@@ -1,100 +1,165 @@
-from typing import List
+"""
+Standard API response envelope.
+
+Matches docs/api/spec.md canonical version. All Flask API responses should use
+``standard_response()`` for a consistent JSON shape (error, ui_message,
+status_code, redirect_to_login, data, plus opt-in dev_message, pagination,
+ordering, filtering).
+
+Examples
+--------
+Success with data::
+
+    from pamfilico_python_utils.flask.responses import standard_response
+
+    @app.route("/api/user")
+    def get_user():
+        user = fetch_current_user()
+        return standard_response(data={"id": user.id, "email": user.email})
+
+Error response (e.g. in route or error handler)::
+
+    return standard_response(
+        error=True,
+        ui_message="Vehicle not found",
+        status_code=404,
+    )
+
+Error with developer context (for debugging)::
+
+    return standard_response(
+        error=True,
+        ui_message="Internal Server Error",
+        dev_message=f"Traceback: {traceback.format_exc()}",
+        status_code=500,
+    )
+
+Paginated list with ordering::
+
+    return standard_response(
+        data=items,
+        pagination={
+            "currentPage": 1,
+            "totalPages": 5,
+            "pageSize": 20,
+            "totalCount": 100,
+            "nextPage": 2,
+            "previousPage": None,
+        },
+        ordering={"sortBy": "created_at", "sortOrder": "desc"},
+    )
+
+Paginated list with filtering metadata::
+
+    return standard_response(
+        data=items,
+        pagination={...},
+        ordering={...},
+        filtering={"status": {"eq": "active"}, "price": {"gte": "10"}},
+    )
+
+Auth redirect hint::
+
+    return standard_response(
+        error=True,
+        ui_message="Session expired",
+        redirect_to_login=True,
+        status_code=401,
+    )
+"""
 
 
-# TODO: include other fields
 def standard_response(
     data=None,
     ui_message="",
-    status_code: int = 200,
-    redirect_to_login: bool = False,
-    excluded_keys: List[str] = [
-        "pagination",
-        "meta",
-        "rateLimit",
-        "_links",
-        "requestInfo",
-        "debugInfo",
-        "warnings",
-        "locale",
-        "timezone",
-        "authToken",
-        "success",
-        "dev_message",
-    ],
-    error: bool = False,
-    message: str = "",
-    dev_message: str = "",
+    dev_message="",
+    status_code=200,
+    error=False,
+    redirect_to_login=False,
+    pagination=None,
+    ordering=None,
+    filtering=None,
 ):
-    """
-    Generates a standard response dictionary with various fields and a status code.
+    """Wrap an API response in the standard envelope.
 
-    Parameters:
-    - data (optional): The data to be included in the response. Defaults to None.
-    - ui_message (str, optional): A user interface message. Defaults to an empty string.
-    - status_code (int, optional): The HTTP status code for the response. Defaults to 200.
-    - excluded_keys (list, optional): A list of keys to exclude from the response. Defaults to None.
+    Parameters
+    ----------
+    data : optional
+        The response payload. Defaults to None.
+    ui_message : str, optional
+        User-facing message displayed in the UI (toast, alert). Defaults to "".
+    dev_message : str, optional
+        Developer-facing message for debugging (only included when non-empty).
+        Defaults to "".
+    status_code : int, optional
+        HTTP status code. Defaults to 200.
+    error : bool, optional
+        True if the request failed, False if it succeeded. Defaults to False.
+    redirect_to_login : bool, optional
+        Hint for the frontend to redirect to login. Defaults to False.
+    pagination : dict, optional
+        Pagination metadata (only included when provided).
+        Keys: currentPage, totalPages, pageSize, totalCount, nextPage, previousPage.
+    ordering : dict, optional
+        Ordering metadata (only included when provided).
+        Keys: sortBy, sortOrder.
+    filtering : dict, optional
+        Active filter metadata (only included when provided).
 
-    Returns:
-    - tuple: A tuple containing the response dictionary and the status code.
+    Returns
+    -------
+    tuple[dict, int]
+        (response_dict, status_code) for Flask to jsonify and return.
 
-    Doctests:
-    >>> response, code = standard_response(
-    ...     data={"item": "value"}, ui_message="Test Message", status_code=200
-    ... )
-    >>> response["ui_message"]
-    'Test Message'
+    Examples
+    --------
+    >>> response, code = standard_response(data={"item": "value"}, ui_message="Saved!")
     >>> response["data"]
     {'item': 'value'}
-    >>> code
-    200
+    >>> response["error"]
+    False
+    >>> "dev_message" in response
+    False
+    >>> "pagination" in response
+    False
 
-    >>> response, _ = standard_response(excluded_keys=["data", "meta"])
-    >>> "data" in response
-    False
-    >>> "meta" in response
-    False
+    >>> response, _ = standard_response(
+    ...     error=True, ui_message="Not found", dev_message="user_id=abc has no items"
+    ... )
+    >>> response["error"]
+    True
+    >>> response["dev_message"]
+    'user_id=abc has no items'
+
+    >>> response, _ = standard_response(
+    ...     data=[{"id": 1}],
+    ...     pagination={"currentPage": 1, "totalPages": 5, "pageSize": 20,
+    ...                "totalCount": 100, "nextPage": 2, "previousPage": None},
+    ...     ordering={"sortBy": "created_at", "sortOrder": "desc"},
+    ... )
+    >>> response["pagination"]["currentPage"]
+    1
+    >>> response["ordering"]["sortBy"]
+    'created_at'
     """
-
-    if excluded_keys is None:
-        excluded_keys = []
-
-    response_template = {
-        "message": message,
+    response = {
         "error": error,
-        "redirect_to_login": redirect_to_login,
         "ui_message": ui_message,
-        "dev_message": dev_message,
         "status_code": status_code,
+        "redirect_to_login": redirect_to_login,
         "data": data,
-        "pagination": {
-            "page_number": None,
-            "results_per_page": None,
-            "total_count": None,
-            "total_pages": None,
-            "has_next": None,
-            "has_prev": None,
-        },
-        "meta": {"apiVersion": None, "responseTime": None, "fromCache": None},
-        "rateLimit": {
-            "limit": None,
-            "remaining": None,
-            "reset": None,
-        },
-        "warnings": [],
-        "locale": None,
-        "timezone": None,
-        "authToken": None,
-        "_links": {
-            "self": None,
-            "next": None,
-            "previous": None,
-        },
-        "requestInfo": {},
-        "debugInfo": {"stackTrace": None},
     }
 
-    # Remove excluded keys
-    for key in excluded_keys:
-        response_template.pop(key, None)
+    if dev_message:
+        response["dev_message"] = dev_message
 
-    return response_template, status_code
+    if pagination is not None:
+        response["pagination"] = pagination
+
+    if ordering is not None:
+        response["ordering"] = ordering
+
+    if filtering is not None:
+        response["filtering"] = filtering
+
+    return response, status_code

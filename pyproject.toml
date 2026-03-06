@@ -13,6 +13,7 @@ hkdf = "0.0.3"
 python-dotenv = ">=1.0.0"
 flask = ">=2.0.0"
 marshmallow = ">=3.0.0"
+python-dateutil = ">=2.8.0"
 werkzeug = ">=2.0.0"
 boto3 = ">=1.36.0"
 tomli = ">=2.0.0"
@@ -34,6 +35,10 @@ python_quality_audit = "pamfilico_python_utils.cli.python_quality_audit:main"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.9.1"
+pytest = ">=7.0.0"
+
+[tool.pytest.ini_options]
+testpaths = ["pamfilico_python_utils/tests"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"

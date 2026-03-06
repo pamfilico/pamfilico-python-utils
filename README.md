@@ -58,10 +58,11 @@ poetry update pamfilico-python-utils
 
 ## Features
 
-- **SQLAlchemy Mixins**: Ready-to-use mixins for common database patterns
+- **SQLAlchemy Mixins & Utilities**: Ready-to-use mixins and query helpers
   - `DateTimeMixin`: Automatic `created_at` and `updated_at` timestamp fields
   - NextAuth.js mixins for user authentication (User, Session, Account, VerificationToken)
   - `generate_uuid()`: UUID generation utility
+  - `apply_filters`, `parse_filters`: Query param filtering (`filter[field][operator]=value`) with type coercion
 
 - **Flask Utilities**: Authentication, error handling, and response formatting
   - `jwt_authenticator_with_scopes`: JWT authentication decorator with role-based access
@@ -155,6 +156,62 @@ def admin_dashboard(auth):
     return standard_response(data={"dashboard": "data"})
 ```
 
+### NextAuth REST Adapter Blueprint (user_auth)
+
+Register a NextAuth REST-style auth blueprint with a custom URL prefix to test without modifying existing `api/v1` auth endpoints:
+
+```python
+from flask import Flask
+from pamfilico_python_utils.flask import init_user_auth, init_errors
+from app.database.engine import DBsession
+from app.database.models.user import User, UserSession, UserAccount, UserVerificationToken
+
+app = Flask(__name__)
+init_errors(app)
+
+# Register at /api/v2/auth (does not overlap with /api/v1/auth)
+init_user_auth(
+    app,
+    db_session_factory=DBsession,
+    user_model=User,
+    session_model=UserSession,
+    account_model=UserAccount,
+    verification_token_model=UserVerificationToken,
+    url_prefix="/api/v2/auth",
+)
+
+# Routes: POST/GET /users, PUT /users/<id>, GET /users/email/<email>,
+#         POST /accounts, POST /sessions, POST /verification_tokens,
+#         GET /verification_tokens/use
+```
+
+### SQLAlchemy Filtering
+
+Apply `filter[field][operator]=value` query params to SQLAlchemy queries. Values are coerced to the column type. Use with `standard_response(filtering=...)`:
+
+```python
+from flask import request
+from pamfilico_python_utils.sqlalchemy import apply_filters
+from pamfilico_python_utils.flask import standard_response
+
+@app.route('/api/items')
+def list_items():
+    query = session.query(Item)
+    query, active_filters = apply_filters(
+        query, Item, request.args,
+        allowed_fields={"status", "price", "name", "category", "created_at"}
+    )
+    items = query.all()
+    return standard_response(
+        data=[i.to_dict() for i in items],
+        filtering=active_filters,
+    )
+
+# GET /api/items?filter[status][eq]=active&filter[price][gte]=100
+```
+
+Supported operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `in`.
+
 ### Flask Pagination
 
 ```python
@@ -225,13 +282,15 @@ url = client.get_public_url('users/123/logo/header_logo.png')
 ### Individual Imports
 
 ```python
-# SQLAlchemy mixins
+# SQLAlchemy mixins and utilities
 from pamfilico_python_utils.sqlalchemy import (
     DateTimeMixin,
     NextAuthUserMixin,
     NextAuthSessionMixin,
     NextAuthAccountMixin,
     NextAuthVerificationTokenMixin,
+    apply_filters,
+    parse_filters,
     generate_uuid,
 )
 
@@ -242,6 +301,7 @@ from pamfilico_python_utils.flask import (
     validate_uuid_params,
     standard_response,
     init_errors,
+    init_user_auth,
 )
 
 # Storage utilities
@@ -609,11 +669,5 @@ analyzer.generate_split_reports()
 poetry install
 
 # Run tests
-poetry run pytest
-
-# Format code
-poetry run ruff format
-
-# Lint code
-poetry run ruff check
+poetry run pytest pamfilico_python_utils/tests/ -v
 ```

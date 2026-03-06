@@ -357,7 +357,7 @@ def admin_required(admin_token_manager: Optional[Any] = None):
             if not token:
                 response, status_code = standard_response(
                     error=True,
-                    message="Admin authentication required",
+                    dev_message="Admin authentication required",
                     ui_message="Access denied. Admin login required.",
                     status_code=401,
                 )
@@ -369,7 +369,7 @@ def admin_required(admin_token_manager: Optional[Any] = None):
                 if not token_data:
                     response, status_code = standard_response(
                         error=True,
-                        message="Invalid or expired admin token",
+                        dev_message="Invalid or expired admin token",
                         ui_message="Session expired. Please login again.",
                         status_code=401,
                     )
