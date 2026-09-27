@@ -1,3 +1,9 @@
+## v0.5.0 (2026-09-27)
+
+### Feat
+
+- expose __version__ read from installed distribution
+
 ## v0.4.0 (2026-09-27)
 
 ### Feat

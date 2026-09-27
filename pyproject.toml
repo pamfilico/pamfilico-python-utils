@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pamfilico-python-utils"
-version = "0.4.0"
+version = "0.5.0"
 description = "Pamfilico Python utility functions and helpers"
 authors = ["Kasper"]
 readme = "README.md"
@@ -42,7 +42,7 @@ testpaths = ["pamfilico_python_utils/tests"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.4.0"
+version = "0.5.0"
 version_files = [
     "pyproject.toml:version"
 ]
